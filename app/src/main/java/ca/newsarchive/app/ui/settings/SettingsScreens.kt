@@ -60,7 +60,9 @@ import ca.newsarchive.app.ui.components.toast
 import ca.newsarchive.app.ui.home.sectionTitle
 import ca.newsarchive.app.work.SyncWorker
 import ca.newsarchive.core.geo.Gazetteer
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.system.exitProcess
 
 @Composable
@@ -217,12 +219,12 @@ fun StorageScreen(nav: Nav) {
     var refreshKey by remember { mutableStateOf(0) }
     var pendingRetention by remember { mutableStateOf<Int?>(null) }
 
-    LaunchedEffect(refreshKey) { stats = c.maintenance.stats() }
+    LaunchedEffect(refreshKey) { stats = withContext(Dispatchers.IO) { c.maintenance.stats() } }
 
     fun run(label: String, block: suspend () -> String) {
         progress = label
         scope.launch {
-            val msg = runCatching { block() }.getOrElse { "Failed: ${it.message}" }
+            val msg = runCatching { withContext(Dispatchers.IO) { block() } }.getOrElse { "Failed: ${it.message}" }
             progress = null; refreshKey++; toast(ctx, msg)
         }
     }
@@ -240,8 +242,10 @@ fun StorageScreen(nav: Nav) {
         if (uri != null) run("Backing up…") { c.io.backup(uri); "Backup saved" }
     }
     val restore = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) {
-            val staged = runCatching { c.io.stageRestore(uri) }
+        if (uri != null) scope.launch {
+            progress = "Checking backup…"
+            val staged = runCatching { withContext(Dispatchers.IO) { c.io.stageRestore(uri) } }
+            progress = null
             staged.onFailure { toast(ctx, it.message ?: "Not a valid backup") }
             staged.onSuccess {
                 confirm = "Replace your current archive with this backup? Everything collected since the backup will be lost. The app will close; open it again to finish." to suspend {

@@ -106,7 +106,7 @@ fun ReaderScreen(articleId: Long, nav: Nav) {
 
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->
         if (uri != null) scope.launch {
-            runCatching { c.io.exportArticleText(articleId, uri) }
+            runCatching { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { c.io.exportArticleText(articleId, uri) } }
                 .onSuccess { toast(ctx, "Article exported") }.onFailure { toast(ctx, "Export failed: ${it.message}") }
         }
     }

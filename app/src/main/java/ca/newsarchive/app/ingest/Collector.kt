@@ -11,6 +11,8 @@ import ca.newsarchive.core.model.SourceKind
 import ca.newsarchive.core.net.HttpFetcher
 import ca.newsarchive.core.telegram.TelegramPreview
 import ca.newsarchive.core.text.UrlCanonicalizer
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 data class SourceResult(val sourceId: Long, val newArticleIds: List<Long>, val error: String?)
 
@@ -103,7 +105,9 @@ class TelegramCollector(private val db: AppDatabase, private val http: HttpFetch
         return total
     }
 
-    suspend fun collect(username: String): Int {
+    suspend fun collect(username: String): Int = withContext(Dispatchers.IO) { collectInternal(username) }
+
+    private suspend fun collectInternal(username: String): Int {
         val ch = db.telegram().get(username) ?: return 0
         val now = System.currentTimeMillis()
         val res = try { http.get(TelegramPreview.previewUrl(username), accept = "text/html") } catch (e: Exception) {

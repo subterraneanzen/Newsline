@@ -89,7 +89,7 @@ fun SourcesScreen(nav: Nav) {
     var importPreview by remember { mutableStateOf<List<ca.newsarchive.core.feed.OpmlEntry>?>(null) }
 
     val exportOpml = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/x-opml")) { uri ->
-        if (uri != null) scope.launch { runCatching { c.io.exportOpml(uri) }.onSuccess { toast(ctx, "Exported $it sources") }.onFailure { toast(ctx, "Export failed: ${it.message}") } }
+        if (uri != null) scope.launch { runCatching { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { c.io.exportOpml(uri) } }.onSuccess { toast(ctx, "Exported $it sources") }.onFailure { toast(ctx, "Export failed: ${it.message}") } }
     }
     val importOpml = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) runCatching { c.io.readOpml(uri) }.onSuccess { importPreview = it }.onFailure { toast(ctx, "Couldn't read OPML: ${it.message}") }

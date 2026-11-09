@@ -47,6 +47,10 @@ jobs:
             On your phone: download NewsArchive-debug.apk below, open it, and allow installs from this source when asked.
           files: NewsArchive-debug.apk
 
+      - name: Check that an (unsigned) release build also compiles with R8
+        continue-on-error: true
+        run: ./gradlew --no-daemon :app:assembleRelease
+
       - name: Upload test reports on failure
         if: failure()
         uses: actions/upload-artifact@v4

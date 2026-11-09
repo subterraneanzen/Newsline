@@ -3,8 +3,12 @@
 _Last updated: 2026-11-09_
 
 ## Build status
-- `:core` compiles, and its 20 unit tests pass. They were run offline in the development workspace with the Kotlin 2.0.21 compiler; CI runs them again with `./gradlew :core:test`.
-- `:app` is compiled by GitHub Actions only, because the development workspace has no Android SDK and can't reach Google Maven. See the Actions tab for the current result.
+- **GitHub Actions: passing.** Every push to `main` runs:
+  - the `:core` unit tests (20 passing),
+  - a debug APK build, published to the `latest-debug` release,
+  - an unsigned release build with R8.
+- **Not yet verified on a physical device.** Everything above was checked by compiling and by unit tests of the core logic. Collection, background runs, notifications and backup/restore still need hands-on testing on a phone.
+- **Debug APK size:** about 58 MB, mostly the Compose icon library and debug metadata. A release build with R8 is much smaller.
 
 ## Implemented
 - **Foundation:** Kotlin, Compose, Material 3, Room with FTS4, WorkManager, manual DI and a five-tab navigation bar (Home, Explore, Timeline, Telegram, Library).

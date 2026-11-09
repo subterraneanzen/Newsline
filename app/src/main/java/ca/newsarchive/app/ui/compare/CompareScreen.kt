@@ -79,7 +79,7 @@ fun CompareScreen(storyId: Long, nav: Nav) {
                 }
             }
             items(list.sortedBy { it.a.sortTime }, key = { it.a.id }) { r ->
-                Card(Modifier.padding(horizontal = 12.dp, vertical = 6.dp).fillMaxWidth(), onClick = { nav.openArticle(r.a.id, list.map { it.a.id }) }) {
+                Card(modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp).fillMaxWidth(), onClick = { nav.openArticle(r.a.id, list.map { it.a.id }) }) {
                     Column(Modifier.padding(14.dp)) {
                         Text(r.publisher.uppercase(), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
                         Fmt.articleType(r.a.articleType)?.let { Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.tertiary) }

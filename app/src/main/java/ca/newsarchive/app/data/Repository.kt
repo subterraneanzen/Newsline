@@ -64,13 +64,14 @@ class Repository(
 
     suspend fun addProbed(r: ProbeResult, name: String, category: String, placeCode: String?, isLocal: Boolean): AddResult {
         val url = r.feedUrl ?: return AddResult.Invalid("No usable address")
-        if (!r.ok || r.kind == null) return AddResult.Invalid(r.message)
+        val kind = r.kind
+        if (!r.ok || kind == null) return AddResult.Invalid(r.message)
         findDuplicate(url)?.let { return AddResult.Duplicate(it) }
         val id = db.sources().insert(
             SourceEntity(
-                name = name.ifBlank { r.title ?: UrlCanonicalizer.host(url) ?: url }, url = url, kind = r.kind.name,
+                name = name.ifBlank { r.title ?: UrlCanonicalizer.host(url) ?: url }, url = url, kind = kind.name,
                 homepage = r.siteUrl, category = category.ifBlank { "Uncategorized" }, placeCode = placeCode, isLocal = isLocal,
-                enabled = true, status = if (r.kind == SourceKind.WEBSITE) SourceStatus.PARTIAL else SourceStatus.UNKNOWN, statusNote = r.message,
+                enabled = true, status = if (kind == SourceKind.WEBSITE) SourceStatus.PARTIAL else SourceStatus.UNKNOWN, statusNote = r.message,
             ),
         )
         return if (id > 0) AddResult.Added(id) else AddResult.Invalid("Couldn't add source")

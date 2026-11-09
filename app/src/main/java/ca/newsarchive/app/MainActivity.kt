@@ -10,6 +10,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.staticCompositionLocalOf
+import kotlinx.coroutines.launch
 import ca.newsarchive.app.notify.Notifier
 import ca.newsarchive.app.ui.AppRoot
 import ca.newsarchive.app.ui.theme.NewsTheme
@@ -50,7 +51,7 @@ class MainActivity : ComponentActivity() {
 }
 
 /** First-run seeding and the "collect on launch" pass. */
-private fun kotlinx.coroutines.CoroutineScope.launchStartup(c: AppContainer) = kotlinx.coroutines.launch {
+private fun kotlinx.coroutines.CoroutineScope.launchStartup(c: AppContainer) = launch {
     if (!c.settings.current.firstRunDone) {
         c.repo.seedStarterSources()
         c.settings.update { it.copy(firstRunDone = true) }

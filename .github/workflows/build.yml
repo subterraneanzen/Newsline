@@ -1,0 +1,57 @@
+name: Build APK
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Core module unit tests
+        run: ./gradlew --no-daemon :core:test
+
+      - name: Build debug APK
+        run: ./gradlew --no-daemon :app:assembleDebug
+
+      - name: Rename APK
+        run: cp app/build/outputs/apk/debug/app-debug.apk NewsArchive-debug.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NewsArchive-debug-apk
+          path: NewsArchive-debug.apk
+
+      - name: Publish to "latest" release (easy phone download)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest-debug
+          name: Latest debug build
+          prerelease: true
+          body: |
+            Debug build of commit ${{ github.sha }}.
+            On your phone: download NewsArchive-debug.apk below, open it, and allow installs from this source when asked.
+          files: NewsArchive-debug.apk
+
+      - name: Upload test reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports
+          path: |
+            core/build/reports
+            app/build/reports

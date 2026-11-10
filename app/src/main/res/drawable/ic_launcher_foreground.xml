@@ -1,8 +1,16 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
-    <!-- Folded newspaper with an archive bar -->
-    <path android:fillColor="#FAF9F6" android:pathData="M32,34h40a4,4 0 0 1 4,4v34a4,4 0 0 1 -4,4H36a4,4 0 0 1 -4,-4z"/>
-    <path android:fillColor="#1F3A5F" android:pathData="M38,40h22v4H38z M38,48h32v2H38z M38,53h32v2H38z M38,58h32v2H38z M38,63h20v2H38z"/>
-    <path android:fillColor="#1F3A5F" android:pathData="M63,40h7v6h-7z"/>
-    <path android:fillColor="#7A4B12" android:pathData="M32,68h44v4H32z"/>
+    <!-- Cardinal made of newsprint: red body with white lines of type and a headline block -->
+    <group android:translateX="25.9" android:translateY="22.1" android:scaleX="1.25" android:scaleY="1.25">
+        <group>
+            <clip-path android:pathData="M12,34L1,44l4,2 12,-9zM6,36Q8,26 20,24Q24,22 26,16L24,5l7,7Q38,12 38,17l6,2.5 -6,3Q38,32 28,38Q18,44 6,36z"/>
+            <path android:fillColor="#C8102E" android:pathData="M0,0h48v48H0z"/>
+            <path android:strokeColor="#FFFFFF" android:strokeWidth="1.4"
+                android:pathData="M0,18h48M0,22h48M0,26h48M0,30h48M0,34h48M0,38h48M0,42h48"/>
+            <path android:fillColor="#FFFFFF" android:pathData="M18,10h20v6H18z"/>
+        </group>
+        <path android:fillColor="#111111" android:pathData="M32,14Q38,14 39,18v4Q34,25 30,20z"/>
+        <path android:fillColor="#F59E0B" android:pathData="M38,16.5l6,3 -6,3z"/>
+        <path android:fillColor="#FFFFFF" android:pathData="M33.3,17.5a1.2,1.2 0,1 0,2.4 0a1.2,1.2 0,1 0,-2.4 0z"/>
+    </group>
 </vector>

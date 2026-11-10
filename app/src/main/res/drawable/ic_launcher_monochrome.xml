@@ -1,0 +1,7 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <!-- Themed-icon version: plain cardinal silhouette -->
+    <group android:translateX="25.9" android:translateY="22.1" android:scaleX="1.25" android:scaleY="1.25">
+        <path android:fillColor="#000000" android:pathData="M12,34L1,44l4,2 12,-9zM6,36Q8,26 20,24Q24,22 26,16L24,5l7,7Q38,12 38,17l6,2.5 -6,3Q38,32 28,38Q18,44 6,36z"/>
+    </group>
+</vector>

@@ -48,6 +48,11 @@ class ArticleProcessor(
         val canonical = UrlCanonicalizer.canonicalize(link)
         if (articles.byCanonical(canonical) != null) return null
         item.guid?.let { g -> if (articles.idByGuid(source.id, g) != null) return null }
+        // Same story from the same publisher under a different link (e.g. listed in two of its feeds).
+        item.title?.let { TextNormalizer.clean(it) }?.takeIf { it.length > 15 }?.let { t ->
+            val host = UrlCanonicalizer.host(link)
+            if (host != null && articles.urlsWithTitle(t, now - 14 * 86_400_000L).any { UrlCanonicalizer.host(it) == host }) return null
+        }
 
         // Fetch the article page. Failures are recorded, never papered over.
         var fetchNote: String? = null

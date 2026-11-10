@@ -38,6 +38,14 @@ import ca.newsarchive.app.ui.components.Nav
 import ca.newsarchive.app.ui.components.SectionHeader
 import ca.newsarchive.app.ui.enc
 import ca.newsarchive.core.geo.Gazetteer
+import ca.newsarchive.core.home.HomePlacement
+import ca.newsarchive.core.text.TextNormalizer
+import ca.newsarchive.core.text.UrlCanonicalizer
+import ca.newsarchive.app.AppContainer
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 
 /**
  * Keeps the home page's scroll position and last-loaded section contents while the user reads an
@@ -47,7 +55,7 @@ private object HomeMemory {
     var index = 0
     var offset = 0
     var total = -1
-    val lists = HashMap<String, List<ArticleListItem>>()
+    var placed: Map<String, List<ArticleListItem>>? = null
     var stories: List<StoryListItem>? = null
 }
 
@@ -71,6 +79,9 @@ fun HomeScreen(nav: Nav) {
     DisposableEffect(listState) {
         onDispose { HomeMemory.index = listState.firstVisibleItemIndex; HomeMemory.offset = listState.firstVisibleItemScrollOffset }
     }
+    val placedFlow = remember(settings.homeSections, settings.homePlace) { homePlacement(c, settings.homeSections, settings.homePlace) }
+    val placed by placedFlow.collectAsState(HomeMemory.placed)
+    placed?.let { HomeMemory.placed = it }
     val lastSync by remember { c.db.misc().observeLastSync() }.collectAsState(null)
 
     if (total == 0) {
@@ -99,19 +110,13 @@ fun HomeScreen(nav: Nav) {
             when (code) {
                 HomeSection.MULTI -> multiSourceSection(nav)
                 else -> {
-                    val filter = when (code) {
-                        HomeSection.LOCAL -> ArticleFilter(placeCode = settings.homePlace, limit = 5)
-                        HomeSection.LATEST, Gazetteer.WORLD_CODE -> ArticleFilter(limit = 5)
-                        HomeSection.UPDATED -> ArticleFilter(minVersions = 2, limit = 5)
-                        else -> ArticleFilter(placeCode = code, limit = 5)
-                    }
                     val target = when (code) {
                         HomeSection.LOCAL -> "place/${enc(settings.homePlace)}"
                         HomeSection.LATEST -> "place/${Gazetteer.WORLD_CODE}"
                         HomeSection.UPDATED -> "place/UPDATED"
                         else -> "place/${enc(code)}"
                     }
-                    articleSection(code, sectionTitle(code, settings.homePlace), filter, target, nav, settings.showImages)
+                    articleSection(code, sectionTitle(code, settings.homePlace), placed?.get(code), placed != null, target, nav, settings.showImages)
                 }
             }
         }
@@ -119,19 +124,42 @@ fun HomeScreen(nav: Nav) {
     }
 }
 
-private fun LazyListScope.articleSection(key: String, title: String, filter: ArticleFilter, target: String, nav: Nav, showImages: Boolean) {
+/**
+ * One flow for every article section on the home page: gathers recent candidates for each section,
+ * drops repeats of the same story from the same publisher, then gives each article to its single most
+ * pertinent section (see [HomePlacement]).
+ */
+private fun homePlacement(c: AppContainer, sections: List<String>, homePlace: String): Flow<Map<String, List<ArticleListItem>>> {
+    val specs = sections.filter { it != HomeSection.MULTI }.map { code ->
+        when (code) {
+            HomeSection.LOCAL -> HomePlacement.Place(code, homePlace) to ArticleFilter(placeCode = homePlace, limit = 40)
+            HomeSection.LATEST, Gazetteer.WORLD_CODE -> HomePlacement.CatchAll(code) to ArticleFilter(limit = 40)
+            HomeSection.UPDATED -> HomePlacement.Updated(code) to ArticleFilter(minVersions = 2, limit = 40)
+            else -> HomePlacement.Place(code, code) to ArticleFilter(placeCode = code, limit = 40)
+        }
+    }
+    if (specs.isEmpty()) return flowOf(emptyMap())
+    return combine(specs.map { c.db.articles().observeList(ArticleQuery.build(it.second)) }) { it.toList() }.map { lists ->
+        val pool = lists.flatten().distinctBy { it.id }.sortedByDescending { it.sortTime }
+            .distinctBy { (UrlCanonicalizer.host(it.url) ?: it.url) + "|" + TextNormalizer.clean(it.title).lowercase() }
+        val tags = c.db.tags().geoForMany(pool.map { it.id }).groupBy { it.articleId }
+        val candidates = pool.map { a ->
+            HomePlacement.Candidate(a.id, a.versionCount, tags[a.id].orEmpty().map { HomePlacement.Tag(it.code, it.confidence, it.inferred) })
+        }
+        val byId = pool.associateBy { it.id }
+        HomePlacement.assign(specs.map { it.first }, candidates).mapValues { (_, ids) -> ids.mapNotNull(byId::get) }
+    }
+}
+
+private fun LazyListScope.articleSection(key: String, title: String, list: List<ArticleListItem>?, loaded: Boolean, target: String, nav: Nav, showImages: Boolean) {
     item(key = "h-$key") {
         SectionHeader(title, Modifier.padding(top = 12.dp)) { TextButton(onClick = { nav.navigate(target) }) { Text("More") } }
     }
     item(key = "b-$key") {
-        val c = LocalContainer.current
-        val items by remember(filter) { c.db.articles().observeList(ArticleQuery.build(filter)) }.collectAsState(HomeMemory.lists[key])
-        val list = items
-        if (list != null) HomeMemory.lists[key] = list
         when {
-            list == null -> Spacer(Modifier.height(40.dp))
-            list.isEmpty() -> Text(
-                "No archived articles tagged with this place yet.",
+            !loaded -> Spacer(Modifier.height(40.dp))
+            list.isNullOrEmpty() -> Text(
+                "No other recent articles for this section. Tap More to see everything tagged here.",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(16.dp),
             )

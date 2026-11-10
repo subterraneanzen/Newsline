@@ -103,6 +103,7 @@ interface ArticleDao {
     @Query("SELECT * FROM articles WHERE id = :id") fun observe(id: Long): Flow<ArticleEntity?>
     @Query("SELECT * FROM articles WHERE id = :id") suspend fun get(id: Long): ArticleEntity?
     @Query("SELECT * FROM articles WHERE canonicalUrl = :c LIMIT 1") suspend fun byCanonical(c: String): ArticleEntity?
+    @Query("SELECT url FROM articles WHERE title = :title AND sortTime > :since") suspend fun urlsWithTitle(title: String, since: Long): List<String>
     @Query("SELECT id FROM articles WHERE sourceId = :sourceId AND guid = :guid LIMIT 1") suspend fun idByGuid(sourceId: Long, guid: String): Long?
     @Query("SELECT * FROM articles WHERE id IN (:ids)") suspend fun byIds(ids: List<Long>): List<ArticleEntity>
 
@@ -171,6 +172,7 @@ interface FtsDao {
 interface TagDao {
     @Query("SELECT * FROM geo_tags WHERE articleId = :articleId ORDER BY confidence DESC") fun observeGeo(articleId: Long): Flow<List<GeoTagEntity>>
     @Query("SELECT * FROM geo_tags WHERE articleId = :articleId") suspend fun geoFor(articleId: Long): List<GeoTagEntity>
+    @Query("SELECT * FROM geo_tags WHERE articleId IN (:ids)") suspend fun geoForMany(ids: List<Long>): List<GeoTagEntity>
     @Query("SELECT * FROM topic_tags WHERE articleId = :articleId ORDER BY confidence DESC") fun observeTopics(articleId: Long): Flow<List<TopicTagEntity>>
     @Query("SELECT * FROM topic_tags WHERE articleId = :articleId") suspend fun topicsFor(articleId: Long): List<TopicTagEntity>
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertGeo(t: List<GeoTagEntity>)

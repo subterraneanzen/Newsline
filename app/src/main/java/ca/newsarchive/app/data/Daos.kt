@@ -175,6 +175,7 @@ interface TagDao {
     @Query("SELECT * FROM geo_tags WHERE articleId IN (:ids)") suspend fun geoForMany(ids: List<Long>): List<GeoTagEntity>
     @Query("SELECT * FROM topic_tags WHERE articleId = :articleId ORDER BY confidence DESC") fun observeTopics(articleId: Long): Flow<List<TopicTagEntity>>
     @Query("SELECT * FROM topic_tags WHERE articleId = :articleId") suspend fun topicsFor(articleId: Long): List<TopicTagEntity>
+    @Query("SELECT * FROM topic_tags WHERE articleId IN (:ids)") suspend fun topicsForMany(ids: List<Long>): List<TopicTagEntity>
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertGeo(t: List<GeoTagEntity>)
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertTopics(t: List<TopicTagEntity>)
     @Query("DELETE FROM geo_tags WHERE articleId = :articleId AND manual = 0") suspend fun clearAutoGeo(articleId: Long)

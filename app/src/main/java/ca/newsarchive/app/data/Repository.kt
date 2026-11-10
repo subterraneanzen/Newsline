@@ -98,6 +98,25 @@ class Repository(
                 ))
             }
         }
+        if (fromVersion < 4) {
+            // Space & Defense section: turn on a core set of space and defense publishers, and fix ESA's moved feed.
+            findDuplicate("https://www.esa.int/rssfeed/Our_Activities/Space_News")?.let { s ->
+                if (findDuplicate("https://www.esa.int/rss/news.rss") == null)
+                    db.sources().update(s.copy(url = "https://www.esa.int/rss/news.rss", etag = null, lastModifiedHeader = null, lastError = null, consecutiveFailures = 0))
+            }
+            val wanted = setOf(
+                "https://www.defensenews.com/feed/", "https://breakingdefense.com/feed/", "https://www.defenseone.com/rss/all/",
+                "https://www.twz.com/feed", "https://news.usni.org/feed", "https://canadiandefencereview.com/feed/", "https://cdainstitute.ca/feed/",
+                "https://spacenews.com/feed/", "https://www.space.com/feeds/all", "https://www.nasa.gov/news-release/feed/",
+                "https://spacepolicyonline.com/feed/",
+                "https://api.io.canada.ca/io-server/gc/news/en/v2?dept=spaceagency&sort=publishedDate&orderBy=desc&pick=50&format=atom&atomtitle=Canadian%20Space%20Agency",
+            )
+            for (d in SourceDirectory.all.filter { it.feedUrl in wanted }) {
+                val existing = findDuplicate(d.feedUrl)
+                if (existing == null) db.sources().insert(d.toEntity(enabled = true))
+                else if (!existing.enabled) db.sources().setEnabled(existing.id, true)
+            }
+        }
     }
 
     private fun DirectorySource.toEntity(enabled: Boolean) = SourceEntity(

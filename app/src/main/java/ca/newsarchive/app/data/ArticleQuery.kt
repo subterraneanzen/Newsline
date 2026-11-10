@@ -21,6 +21,10 @@ data class ArticleFilter(
     val collectionId: Long? = null,
     val storyId: Long? = null,
     val minVersions: Int? = null,
+    /** Matches articles with ANY of these topics, place tags or publisher categories (used by subject sections). */
+    val anyTopics: List<String> = emptyList(),
+    val anyPlaces: List<String> = emptyList(),
+    val anySourceCategories: List<String> = emptyList(),
     val sort: SortOrder = SortOrder.NEWEST,
     val limit: Int = 60,
 )
@@ -62,6 +66,13 @@ object ArticleQuery {
         f.collectionId?.let { where += "a.id IN (SELECT articleId FROM collection_items WHERE collectionId = ?)"; args += it }
         f.storyId?.let { where += "a.storyId = ?"; args += it }
         f.minVersions?.let { where += "a.versionCount >= ?"; args += it }
+        run {
+            val any = mutableListOf<String>()
+            if (f.anyTopics.isNotEmpty()) { any += "EXISTS (SELECT 1 FROM topic_tags t2 WHERE t2.articleId = a.id AND t2.topic IN (${f.anyTopics.joinToString(",") { "?" }}))"; args.addAll(f.anyTopics) }
+            if (f.anyPlaces.isNotEmpty()) { any += "EXISTS (SELECT 1 FROM geo_tags g2 WHERE g2.articleId = a.id AND g2.code IN (${f.anyPlaces.joinToString(",") { "?" }}))"; args.addAll(f.anyPlaces) }
+            if (f.anySourceCategories.isNotEmpty()) { any += "s.category IN (${f.anySourceCategories.joinToString(",") { "?" }})"; args.addAll(f.anySourceCategories) }
+            if (any.isNotEmpty()) where += "(" + any.joinToString(" OR ") + ")"
+        }
 
         val order = when {
             f.history -> "a.readAt DESC"

@@ -39,4 +39,29 @@ class HomePlacementTest {
         assertEquals(listOf(1L), r["LOCAL"]); assertEquals(listOf(2L), r["CA"]); assertEquals(emptyList(), r["CA-SK"])
         assertEquals(2, r.values.sumOf { it.size })
     }
+
+    private val withSubject = listOf(
+        HomePlacement.Place("LOCAL", "CA-SK:regina"), HomePlacement.Place("CA", "CA"), HomePlacement.Place("US", "US"),
+        HomePlacement.Subject("SPACE_DEFENSE", setOf("Space", "Defense & Military"), setOf("SPACE"), setOf("Defense & Military")),
+        HomePlacement.CatchAll("WORLD"),
+    )
+    private fun subject(c: Candidate) = HomePlacement.bestSection(withSubject, c)?.key
+
+    @Test fun subjectBeatsPlaceWhenClear() {
+        val us = listOf(Tag("US", 1.0, false))
+        assertEquals("SPACE_DEFENSE", subject(Candidate(1, 1, us, listOf(HomePlacement.TopicScore("Defense & Military", 0.7)))))
+        assertEquals("SPACE_DEFENSE", subject(Candidate(1, 1, us + Tag("SPACE", 0.8, false))))
+        assertEquals("SPACE_DEFENSE", subject(Candidate(1, 1, emptyList(), sourceCategory = "Defense & Military")))
+        // A passing mention is not enough: the article stays with its place.
+        assertEquals("US", subject(Candidate(1, 1, us, listOf(HomePlacement.TopicScore("Defense & Military", 0.4)))))
+        assertEquals("US", subject(Candidate(1, 1, us, listOf(HomePlacement.TopicScore("Politics", 0.9)))))
+    }
+
+    @Test fun defenseTopicIsClassified() {
+        val t = ca.newsarchive.core.topic.TopicClassifier.classify(
+            "Canada orders new submarines for the Royal Canadian Navy",
+            listOf("The Department of National Defence said the procurement is the largest in decades."),
+        )
+        assertEquals("Defense & Military", t.first().topic)
+    }
 }

@@ -59,6 +59,16 @@ private fun kotlinx.coroutines.CoroutineScope.launchStartup(c: AppContainer) = l
     val dirVersion = c.settings.current.directoryVersion
     if (dirVersion < ca.newsarchive.app.data.DIRECTORY_VERSION) {
         runCatching { c.repo.applyDirectoryUpdates(dirVersion) }
+        if (dirVersion < 4) c.settings.update { s ->
+            // The Space section becomes Space & Defense (added if the user had no Space section).
+            val hs = s.homeSections
+            val next = when {
+                ca.newsarchive.app.data.HomeSection.SPACE_DEFENSE in hs -> hs
+                "SPACE" in hs -> hs.map { if (it == "SPACE") ca.newsarchive.app.data.HomeSection.SPACE_DEFENSE else it }
+                else -> hs + ca.newsarchive.app.data.HomeSection.SPACE_DEFENSE
+            }
+            s.copy(homeSections = next)
+        }
         c.settings.update { it.copy(directoryVersion = ca.newsarchive.app.data.DIRECTORY_VERSION) }
     }
     c.images.trim()

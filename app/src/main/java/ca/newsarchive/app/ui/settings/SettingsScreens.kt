@@ -196,7 +196,7 @@ fun SettingsScreen(nav: Nav) {
                     }
                     Text("Add a section", style = MaterialTheme.typography.labelMedium)
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        listOf(HomeSection.LOCAL, HomeSection.MULTI, HomeSection.LATEST, HomeSection.UPDATED, Gazetteer.WORLD_CODE, Gazetteer.SPACE_CODE)
+                        listOf(HomeSection.LOCAL, HomeSection.MULTI, HomeSection.LATEST, HomeSection.UPDATED, Gazetteer.WORLD_CODE, HomeSection.SPACE_DEFENSE, Gazetteer.SPACE_CODE)
                             .filter { it !in s.homeSections }.forEach { code ->
                                 FilterChip(false, { update { it.copy(homeSections = it.homeSections + code) } }, label = { Text(sectionTitle(code, s.homePlace)) })
                             }

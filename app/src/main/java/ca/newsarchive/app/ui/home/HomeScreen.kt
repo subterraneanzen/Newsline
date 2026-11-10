@@ -64,6 +64,7 @@ fun sectionTitle(code: String, homePlace: String): String = when (code) {
     HomeSection.MULTI -> "Multi-source coverage"
     HomeSection.LATEST -> "Latest"
     HomeSection.UPDATED -> "Recently updated articles"
+    HomeSection.SPACE_DEFENSE -> "Space & Defense"
     Gazetteer.WORLD_CODE -> "World"
     Gazetteer.SPACE_CODE -> "Space"
     else -> Gazetteer.get(code)?.name ?: code
@@ -124,6 +125,12 @@ fun HomeScreen(nav: Nav) {
     }
 }
 
+/** Articles about space or defense: by topic, by the Space tag, or from a space/defense publisher. */
+fun spaceDefenseFilter(limit: Int, from: Long? = null, articleType: String? = null) = ArticleFilter(
+    anyTopics = HomeSection.spaceDefenseTopics, anyPlaces = HomeSection.spaceDefensePlaces,
+    anySourceCategories = HomeSection.spaceDefenseSourceCategories, from = from, articleType = articleType, limit = limit,
+)
+
 /**
  * One flow for every article section on the home page: gathers recent candidates for each section,
  * drops repeats of the same story from the same publisher, then gives each article to its single most
@@ -135,6 +142,9 @@ private fun homePlacement(c: AppContainer, sections: List<String>, homePlace: St
             HomeSection.LOCAL -> HomePlacement.Place(code, homePlace) to ArticleFilter(placeCode = homePlace, limit = 40)
             HomeSection.LATEST, Gazetteer.WORLD_CODE -> HomePlacement.CatchAll(code) to ArticleFilter(limit = 40)
             HomeSection.UPDATED -> HomePlacement.Updated(code) to ArticleFilter(minVersions = 2, limit = 40)
+            HomeSection.SPACE_DEFENSE -> HomePlacement.Subject(
+                code, HomeSection.spaceDefenseTopics.toSet(), HomeSection.spaceDefensePlaces.toSet(), HomeSection.spaceDefenseSourceCategories.toSet(),
+            ) to spaceDefenseFilter(limit = 40)
             else -> HomePlacement.Place(code, code) to ArticleFilter(placeCode = code, limit = 40)
         }
     }
@@ -142,9 +152,15 @@ private fun homePlacement(c: AppContainer, sections: List<String>, homePlace: St
     return combine(specs.map { c.db.articles().observeList(ArticleQuery.build(it.second)) }) { it.toList() }.map { lists ->
         val pool = lists.flatten().distinctBy { it.id }.sortedByDescending { it.sortTime }
             .distinctBy { (UrlCanonicalizer.host(it.url) ?: it.url) + "|" + TextNormalizer.clean(it.title).lowercase() }
-        val tags = c.db.tags().geoForMany(pool.map { it.id }).groupBy { it.articleId }
+        val ids = pool.map { it.id }
+        val tags = c.db.tags().geoForMany(ids).groupBy { it.articleId }
+        val topics = if (specs.any { it.first is HomePlacement.Subject }) c.db.tags().topicsForMany(ids).groupBy { it.articleId } else emptyMap()
+        val categories = c.db.sources().all().associate { it.id to it.category }
         val candidates = pool.map { a ->
-            HomePlacement.Candidate(a.id, a.versionCount, tags[a.id].orEmpty().map { HomePlacement.Tag(it.code, it.confidence, it.inferred) })
+            HomePlacement.Candidate(
+                a.id, a.versionCount, tags[a.id].orEmpty().map { HomePlacement.Tag(it.code, it.confidence, it.inferred) },
+                topics[a.id].orEmpty().map { HomePlacement.TopicScore(it.topic, it.confidence) }, categories[a.sourceId],
+            )
         }
         val byId = pool.associateBy { it.id }
         HomePlacement.assign(specs.map { it.first }, candidates).mapValues { (_, ids) -> ids.mapNotNull(byId::get) }

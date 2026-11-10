@@ -40,6 +40,8 @@ import ca.newsarchive.app.ui.components.Nav
 import ca.newsarchive.app.ui.components.SectionHeader
 import ca.newsarchive.app.ui.enc
 import ca.newsarchive.app.ui.home.sectionTitle
+import ca.newsarchive.app.ui.home.spaceDefenseFilter
+import ca.newsarchive.app.data.HomeSection
 import ca.newsarchive.core.geo.Gazetteer
 import ca.newsarchive.core.topic.TopicClassifier
 import kotlinx.coroutines.launch
@@ -85,6 +87,7 @@ fun PlaceBrowser(initial: String, nav: Nav, showTopics: Boolean) {
 
     val filter = when (code) {
         "UPDATED" -> ArticleFilter(minVersions = 2, from = range.from(), articleType = type, limit = limit)
+        HomeSection.SPACE_DEFENSE -> spaceDefenseFilter(limit, range.from(), type)
         else -> ArticleFilter(placeCode = code, from = range.from(), articleType = type, limit = limit)
     }
     val items by remember(filter) { c.db.articles().observeList(ArticleQuery.build(filter)) }.collectAsState(emptyList())
@@ -96,7 +99,7 @@ fun PlaceBrowser(initial: String, nav: Nav, showTopics: Boolean) {
         item {
             Column(Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
                 // Breadcrumbs
-                if (code != "UPDATED") {
+                if (code != "UPDATED" && code != HomeSection.SPACE_DEFENSE) {
                     val chain = (listOfNotNull(Gazetteer.get(code)) + Gazetteer.ancestors(code)).reversed()
                     Row(Modifier.horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically) {
                         TextButton(onClick = { code = Gazetteer.WORLD_CODE; limit = 60 }) { Text("World") }
@@ -107,7 +110,7 @@ fun PlaceBrowser(initial: String, nav: Nav, showTopics: Boolean) {
                 // Children of the current level that have articles (World also offers Space).
                 val children = when (code) {
                     Gazetteer.WORLD_CODE -> Gazetteer.continents()
-                    Gazetteer.SPACE_CODE, "UPDATED" -> emptyList()
+                    Gazetteer.SPACE_CODE, "UPDATED", HomeSection.SPACE_DEFENSE -> emptyList()
                     else -> Gazetteer.children(code)
                 }.filter { (countMap[it.code] ?: 0) > 0 }.sortedByDescending { countMap[it.code] ?: 0 }
                 if (children.isNotEmpty() || code == Gazetteer.WORLD_CODE) {
@@ -126,7 +129,7 @@ fun PlaceBrowser(initial: String, nav: Nav, showTopics: Boolean) {
                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     articleTypes.forEach { (v, l) -> FilterChip(selected = type == v, onClick = { type = v }, label = { Text(l) }) }
                 }
-                if (code != Gazetteer.WORLD_CODE && code != "UPDATED") {
+                if (code != Gazetteer.WORLD_CODE && code != "UPDATED" && code != HomeSection.SPACE_DEFENSE) {
                     val followed = follows.any { it.kind == FollowKind.PLACE && it.value == code }
                     TextButton(onClick = {
                         scope.launch {

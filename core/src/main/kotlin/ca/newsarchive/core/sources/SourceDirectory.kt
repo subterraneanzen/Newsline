@@ -157,12 +157,35 @@ Technology|404 Media|https://www.404media.co/rss/|https://www.404media.co|-|en|N
 Space & Astronomy|NASA – News Releases|https://www.nasa.gov/news-release/feed/|https://www.nasa.gov|-|en|N|Y
 Space & Astronomy|Space.com|https://www.space.com/feeds/all|https://www.space.com|-|en|N|Y
 Space & Astronomy|SpaceNews|https://spacenews.com/feed/|https://spacenews.com|-|en|N|N
-Space & Astronomy|ESA – Space News|https://www.esa.int/rssfeed/Our_Activities/Space_News|https://www.esa.int|-|en|N|N
+Space & Astronomy|ESA – Space News|https://www.esa.int/rss/news.rss|https://www.esa.int|-|en|N|N
 Space & Astronomy|Universe Today|https://www.universetoday.com/feed/|https://www.universetoday.com|-|en|N|N
 Space & Astronomy|Sky & Telescope|https://skyandtelescope.org/feed/|https://skyandtelescope.org|-|en|N|N
 Space & Astronomy|NASASpaceflight.com|https://www.nasaspaceflight.com/feed/|https://www.nasaspaceflight.com|-|en|N|N
 Space & Astronomy|Spaceflight Now|https://spaceflightnow.com/feed/|https://spaceflightnow.com|-|en|N|N
 Space & Astronomy|The Planetary Society|https://www.planetary.org/rss/articles|https://www.planetary.org|-|en|N|N
+Space & Astronomy|Canadian Space Agency|https://api.io.canada.ca/io-server/gc/news/en/v2?dept=spaceagency&sort=publishedDate&orderBy=desc&pick=50&format=atom&atomtitle=Canadian%20Space%20Agency|https://www.asc-csa.gc.ca|CA|en|N|N
+Space & Astronomy|SpacePolicyOnline|https://spacepolicyonline.com/feed/|https://spacepolicyonline.com|US|en|N|N
+Space & Astronomy|Payload|https://payloadspace.com/feed/|https://payloadspace.com|US|en|N|N
+Defense & Military|Defense News|https://www.defensenews.com/feed/|https://www.defensenews.com|US|en|N|N
+Defense & Military|Defense News – Space|https://www.defensenews.com/space/feed/|https://www.defensenews.com/space|US|en|N|N
+Defense & Military|Breaking Defense|https://breakingdefense.com/feed/|https://breakingdefense.com|US|en|N|N
+Defense & Military|Defense One|https://www.defenseone.com/rss/all/|https://www.defenseone.com|US|en|N|N
+Defense & Military|DefenseScoop|https://defensescoop.com/feed/|https://defensescoop.com|US|en|N|N
+Defense & Military|Military Times|https://www.militarytimes.com/feed/|https://www.militarytimes.com|US|en|N|N
+Defense & Military|The War Zone|https://www.twz.com/feed|https://www.twz.com|US|en|N|N
+Defense & Military|USNI News|https://news.usni.org/feed|https://news.usni.org|US|en|N|N
+Defense & Military|Naval News|https://www.navalnews.com/feed/|https://www.navalnews.com|-|en|N|N
+Defense & Military|Air & Space Forces Magazine|https://www.airandspaceforces.com/feed/|https://www.airandspaceforces.com|US|en|N|N
+Defense & Military|Task & Purpose|https://taskandpurpose.com/feed/|https://taskandpurpose.com|US|en|N|N
+Defense & Military|War on the Rocks|https://warontherocks.com/feed/|https://warontherocks.com|-|en|N|N
+Defense & Military|U.S. Department of War – News|https://www.war.gov/DesktopModules/ArticleCS/RSS.ashx?ContentType=1&Site=945&max=10|https://www.war.gov|US|en|N|N
+Defense & Military|U.S. Space Force – News|https://www.spaceforce.mil/DesktopModules/ArticleCS/RSS.ashx?ContentType=1&Site=1060&max=10|https://www.spaceforce.mil|US|en|N|N
+Defense & Military|Canadian Defence Review|https://canadiandefencereview.com/feed/|https://canadiandefencereview.com|CA|en|N|N
+Defense & Military|CDA Institute|https://cdainstitute.ca/feed/|https://cdainstitute.ca|CA|en|N|N
+Defense & Military|Legion Magazine|https://legionmagazine.com/feed/|https://legionmagazine.com|CA|en|N|N
+Defense & Military|UK Defence Journal|https://ukdefencejournal.org.uk/feed/|https://ukdefencejournal.org.uk|GB|en|N|N
+Defense & Military|RUSI – Commentary|https://www.rusi.org/rss/latest-commentary.xml|https://www.rusi.org|GB|en|N|N
+Defense & Military|Arms Control Association|https://www.armscontrol.org/rss.xml|https://www.armscontrol.org|US|en|N|N
 """
 
     val all: List<DirectorySource> by lazy {

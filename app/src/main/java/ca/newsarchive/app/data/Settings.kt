@@ -14,7 +14,13 @@ object HomeSection {
     const val MULTI = "MULTI"          // multi-source coverage
     const val LATEST = "LATEST"        // everything, newest first
     const val UPDATED = "UPDATED"      // recently changed articles
-    val defaults = listOf(LOCAL, MULTI, "CA-SK", "CA", "US", "C-EU", "WORLD", "SPACE")
+    const val SPACE_DEFENSE = "SPACE_DEFENSE" // space and defense/military news, by subject rather than place
+    val defaults = listOf(LOCAL, MULTI, "CA-SK", "CA", "US", "C-EU", "WORLD", SPACE_DEFENSE)
+
+    /** Topics, tags and publisher categories that make up the Space & Defense section. */
+    val spaceDefenseTopics = listOf("Space", "Defense & Military")
+    val spaceDefensePlaces = listOf("SPACE")
+    val spaceDefenseSourceCategories = listOf("Space & Astronomy", "Defense & Military")
 }
 
 data class AppSettings(
@@ -44,7 +50,7 @@ data class AppSettings(
 )
 
 /** Bump when SourceDirectory changes need applying to existing installs (see Repository.applyDirectoryUpdates). */
-const val DIRECTORY_VERSION = 3
+const val DIRECTORY_VERSION = 4
 
 class SettingsStore(context: Context) {
     private val prefs: SharedPreferences = context.getSharedPreferences("settings", Context.MODE_PRIVATE)

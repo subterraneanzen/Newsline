@@ -176,7 +176,7 @@ private fun TimelineEntry(a: ArticleListItem, nav: Nav, list: List<ArticleListIt
         }
         Box(Modifier.padding(top = 4.dp, end = 10.dp).size(8.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary))
         Column(Modifier.weight(1f)) {
-            Text(a.title, style = MaterialTheme.typography.titleMedium, maxLines = 3, overflow = TextOverflow.Ellipsis)
+            Text(a.title, style = MaterialTheme.typography.titleMedium)
             val extra = listOfNotNull(
                 a.sourceName, Fmt.articleType(a.articleType),
                 if (a.publisherCount >= 2) "${a.publisherCount} outlets" else null,

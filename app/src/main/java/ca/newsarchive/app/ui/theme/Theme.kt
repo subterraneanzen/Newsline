@@ -6,6 +6,11 @@ import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -63,8 +68,35 @@ private val AppTypography = base.copy(
 
 val SectionLabel = TextStyle(fontWeight = FontWeight.Bold, fontSize = 13.sp, letterSpacing = 1.2.sp)
 
+/**
+ * App theme. [background] and [text] are ARGB values chosen in Settings (0 = theme default);
+ * [textScale] multiplies the system font scale for every screen.
+ */
 @Composable
-fun NewsTheme(mode: ThemeMode, content: @Composable () -> Unit) {
-    val dark = when (mode) { ThemeMode.SYSTEM -> isSystemInDarkTheme(); ThemeMode.DARK -> true; ThemeMode.LIGHT -> false }
-    MaterialTheme(colorScheme = if (dark) Dark else Light, typography = AppTypography, content = content)
+fun NewsTheme(mode: ThemeMode, background: Long = 0L, text: Long = 0L, textScale: Float = 1f, content: @Composable () -> Unit) {
+    val bg = if (background != 0L) Color(background.toInt()) else null
+    val fg = if (text != 0L) Color(text.toInt()) else null
+    // A custom background decides light vs dark so default text stays readable on it.
+    val dark = when {
+        bg != null -> bg.luminance() < 0.4f
+        mode == ThemeMode.SYSTEM -> isSystemInDarkTheme()
+        else -> mode == ThemeMode.DARK
+    }
+    var scheme = if (dark) Dark else Light
+    if (bg != null || fg != null) {
+        val b = bg ?: scheme.background
+        val t = fg ?: scheme.onBackground
+        scheme = scheme.copy(
+            background = b, surface = b, onBackground = t, onSurface = t,
+            onSurfaceVariant = if (fg != null) t.copy(alpha = 0.72f) else scheme.onSurfaceVariant,
+            surfaceVariant = lerp(b, t, 0.10f), surfaceContainer = lerp(b, t, 0.05f),
+            surfaceContainerHigh = lerp(b, t, 0.08f), surfaceContainerLow = lerp(b, t, 0.03f),
+            surfaceContainerHighest = lerp(b, t, 0.11f), surfaceContainerLowest = b,
+            outline = lerp(b, t, 0.40f), outlineVariant = lerp(b, t, 0.16f),
+        )
+    }
+    val density = LocalDensity.current
+    CompositionLocalProvider(LocalDensity provides Density(density.density, density.fontScale * textScale)) {
+        MaterialTheme(colorScheme = scheme, typography = AppTypography, content = content)
+    }
 }

@@ -90,7 +90,7 @@ fun ArticleRow(item: ArticleListItem, onOpen: () -> Unit, showImage: Boolean, on
     ) {
         Column(Modifier.weight(1f)) {
             Text(
-                item.title, style = MaterialTheme.typography.titleMedium, maxLines = 3, overflow = TextOverflow.Ellipsis,
+                item.title, style = MaterialTheme.typography.titleMedium,
                 color = if (item.isRead) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
             )
             Spacer(Modifier.height(4.dp))

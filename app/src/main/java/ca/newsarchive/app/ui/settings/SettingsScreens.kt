@@ -7,7 +7,18 @@ import android.app.Activity
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -86,6 +97,39 @@ private fun <T> ChoiceRow(title: String, options: List<Pair<T, String>>, selecte
     }
 }
 
+private val backgroundChoices = listOf(
+    0L to "Theme default", 0xFFFFFFFF to "White", 0xFFFAF9F6 to "Paper", 0xFFF4ECD8 to "Sepia",
+    0xFFE8EEF4 to "Pale blue", 0xFFE9F1E7 to "Pale green", 0xFF2B2F36 to "Slate", 0xFF1B2433 to "Navy",
+    0xFF121212 to "Dark", 0xFF000000 to "Black",
+)
+private val textChoices = listOf(
+    0L to "Theme default", 0xFF000000 to "Black", 0xFF1A1A1A to "Ink", 0xFF3B2F2F to "Brown",
+    0xFF1F3A5F to "Navy", 0xFFFFFFFF to "White", 0xFFE8E6E1 to "Off-white", 0xFFF2D7A0 to "Amber",
+    0xFFB9F6CA to "Mint",
+)
+
+/** Row of colour circles; the first entry (0) means "follow the theme" and is drawn half light, half dark. */
+@Composable
+private fun ColorRow(title: String, choices: List<Pair<Long, String>>, selected: Long, onSelect: (Long) -> Unit) {
+    Column(Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
+        Text("$title: ${choices.firstOrNull { it.first == selected }?.second ?: "Custom"}")
+        Spacer(Modifier.height(6.dp))
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            choices.forEach { (argb, label) ->
+                val isSel = argb == selected
+                val fill = if (argb == 0L) Modifier.background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(Color(0xFFFAF9F6), Color(0xFFFAF9F6), Color(0xFF121212), Color(0xFF121212))))
+                           else Modifier.background(Color(argb.toInt()))
+                Box(
+                    Modifier.size(38.dp).clip(CircleShape).then(fill)
+                        .border(if (isSel) 3.dp else 1.dp, if (isSel) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline, CircleShape)
+                        .clickable { onSelect(argb) }
+                        .semantics { contentDescription = label; this.selected = isSel },
+                )
+            }
+        }
+    }
+}
+
 @Composable
 fun SettingsScreen(nav: Nav) {
     val c = LocalContainer.current
@@ -118,6 +162,19 @@ fun SettingsScreen(nav: Nav) {
                     Slider(s.lineSpacing, { v -> update { it.copy(lineSpacing = v) } }, valueRange = 1.2f..2.2f, steps = 9)
                 }
                 SwitchRow("Show images", "Off = text-only reading; images are never downloaded", s.showImages) { v -> update { it.copy(showImages = v) } }
+            }
+            item {
+                SectionHeader("Colours & text size", Modifier.padding(top = 12.dp))
+                Column(Modifier.padding(horizontal = 16.dp)) {
+                    Text("App text size: ${(s.appTextScale * 100).toInt()}%")
+                    Slider(s.appTextScale, { v -> update { it.copy(appTextScale = v) } }, valueRange = 0.85f..1.5f, steps = 12)
+                    Text("Applies to every screen, including headlines on the home page.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                ColorRow("Background colour", backgroundChoices, s.backgroundColor) { v -> update { it.copy(backgroundColor = v) } }
+                ColorRow("Text colour", textChoices, s.textColor) { v -> update { it.copy(textColor = v) } }
+                if (s.backgroundColor != 0L || s.textColor != 0L || s.appTextScale != 1f) {
+                    TextButton(onClick = { update { it.copy(backgroundColor = 0L, textColor = 0L, appTextScale = 1f) } }, modifier = Modifier.padding(horizontal = 8.dp)) { Text("Reset colours and text size") }
+                }
             }
             item {
                 SectionHeader("Home screen", Modifier.padding(top = 12.dp))

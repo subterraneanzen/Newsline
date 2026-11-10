@@ -20,6 +20,12 @@ object HomeSection {
 data class AppSettings(
     val theme: ThemeMode = ThemeMode.SYSTEM,
     val fontScale: Float = 1.0f,
+    /** Text size across the whole app (1.0 = system size). */
+    val appTextScale: Float = 1.0f,
+    /** ARGB background colour; 0 = follow the theme. */
+    val backgroundColor: Long = 0L,
+    /** ARGB text colour; 0 = follow the theme. */
+    val textColor: Long = 0L,
     val lineSpacing: Float = 1.5f,
     val showImages: Boolean = true,
     val homeSections: List<String> = HomeSection.defaults,
@@ -49,6 +55,9 @@ class SettingsStore(context: Context) {
     private fun read() = AppSettings(
         theme = runCatching { ThemeMode.valueOf(prefs.getString("theme", "SYSTEM")!!) }.getOrDefault(ThemeMode.SYSTEM),
         fontScale = prefs.getFloat("fontScale", 1.0f),
+        appTextScale = prefs.getFloat("appTextScale", 1.0f),
+        backgroundColor = prefs.getLong("backgroundColor", 0L),
+        textColor = prefs.getLong("textColor", 0L),
         lineSpacing = prefs.getFloat("lineSpacing", 1.5f),
         showImages = prefs.getBoolean("showImages", true),
         homeSections = prefs.getString("homeSections", null)?.split(',')?.filter { it.isNotBlank() } ?: HomeSection.defaults,
@@ -71,6 +80,9 @@ class SettingsStore(context: Context) {
         prefs.edit()
             .putString("theme", n.theme.name)
             .putFloat("fontScale", n.fontScale)
+            .putFloat("appTextScale", n.appTextScale)
+            .putLong("backgroundColor", n.backgroundColor)
+            .putLong("textColor", n.textColor)
             .putFloat("lineSpacing", n.lineSpacing)
             .putBoolean("showImages", n.showImages)
             .putString("homeSections", n.homeSections.joinToString(","))

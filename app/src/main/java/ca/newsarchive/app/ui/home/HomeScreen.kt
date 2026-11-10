@@ -10,6 +10,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.DisposableEffect
+import ca.newsarchive.app.data.ArticleListItem
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -36,6 +39,18 @@ import ca.newsarchive.app.ui.components.SectionHeader
 import ca.newsarchive.app.ui.enc
 import ca.newsarchive.core.geo.Gazetteer
 
+/**
+ * Keeps the home page's scroll position and last-loaded section contents while the user reads an
+ * article, so returning lands on the same headline instead of the list collapsing while data reloads.
+ */
+private object HomeMemory {
+    var index = 0
+    var offset = 0
+    var total = -1
+    val lists = HashMap<String, List<ArticleListItem>>()
+    var stories: List<StoryListItem>? = null
+}
+
 fun sectionTitle(code: String, homePlace: String): String = when (code) {
     HomeSection.LOCAL -> "Local · " + (Gazetteer.get(homePlace)?.name ?: homePlace)
     HomeSection.MULTI -> "Multi-source coverage"
@@ -50,7 +65,12 @@ fun sectionTitle(code: String, homePlace: String): String = when (code) {
 fun HomeScreen(nav: Nav) {
     val c = LocalContainer.current
     val settings by c.settings.flow.collectAsState()
-    val total by remember { c.db.articles().observeCount() }.collectAsState(-1)
+    val total by remember { c.db.articles().observeCount() }.collectAsState(HomeMemory.total)
+    HomeMemory.total = total
+    val listState = rememberLazyListState(HomeMemory.index, HomeMemory.offset)
+    DisposableEffect(listState) {
+        onDispose { HomeMemory.index = listState.firstVisibleItemIndex; HomeMemory.offset = listState.firstVisibleItemScrollOffset }
+    }
     val lastSync by remember { c.db.misc().observeLastSync() }.collectAsState(null)
 
     if (total == 0) {
@@ -67,7 +87,7 @@ fun HomeScreen(nav: Nav) {
         return
     }
 
-    LazyColumn(Modifier.fillMaxSize()) {
+    LazyColumn(Modifier.fillMaxSize(), state = listState) {
         item {
             Text(
                 (lastSync?.let { "Last collection ${Fmt.relative(it)}" } ?: "Not collected yet") + " · ${if (total >= 0) total else 0} articles archived",
@@ -105,8 +125,9 @@ private fun LazyListScope.articleSection(key: String, title: String, filter: Art
     }
     item(key = "b-$key") {
         val c = LocalContainer.current
-        val items by remember(filter) { c.db.articles().observeList(ArticleQuery.build(filter)) }.collectAsState(null)
+        val items by remember(filter) { c.db.articles().observeList(ArticleQuery.build(filter)) }.collectAsState(HomeMemory.lists[key])
         val list = items
+        if (list != null) HomeMemory.lists[key] = list
         when {
             list == null -> Spacer(Modifier.height(40.dp))
             list.isEmpty() -> Text(
@@ -130,8 +151,9 @@ private fun LazyListScope.multiSourceSection(nav: Nav) {
     item(key = "b-multi") {
         val c = LocalContainer.current
         val since = remember { System.currentTimeMillis() - 3L * 86_400_000 }
-        val stories by remember { c.db.stories().observeMultiSource(2, since, 12) }.collectAsState(null)
+        val stories by remember { c.db.stories().observeMultiSource(2, since, 12) }.collectAsState(HomeMemory.stories)
         val list = stories
+        if (list != null) HomeMemory.stories = list
         when {
             list == null -> Spacer(Modifier.height(40.dp))
             list.isEmpty() -> Text(
@@ -156,7 +178,7 @@ fun StoryRow(s: StoryListItem, prominent: Boolean, nav: Nav) {
             .padding(horizontal = 16.dp, vertical = if (prominent) 14.dp else 10.dp),
     ) {
         Text(
-            s.title, maxLines = 3, overflow = TextOverflow.Ellipsis,
+            s.title,
             style = if (prominent) MaterialTheme.typography.titleLarge else MaterialTheme.typography.titleMedium,
         )
         Spacer(Modifier.height(4.dp))

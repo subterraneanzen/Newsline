@@ -32,7 +32,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             val settings by container.settings.flow.collectAsState()
             CompositionLocalProvider(LocalContainer provides container) {
-                NewsTheme(settings.theme) {
+                NewsTheme(settings.theme, settings.backgroundColor, settings.textColor, settings.appTextScale) {
                     AppRoot(pendingArticle.value, onPendingConsumed = { pendingArticle.value = null })
                 }
             }

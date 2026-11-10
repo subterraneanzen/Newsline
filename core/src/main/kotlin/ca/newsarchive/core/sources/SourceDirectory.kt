@@ -12,6 +12,8 @@ data class DirectorySource(
     val local: Boolean,
     /** Enabled on first launch so the app has something to show. */
     val starter: Boolean,
+    /** RSS (default, also covers Atom/RDF), SITEMAP, or WEBSITE (page scanning when no feed exists). */
+    val kind: String = "RSS",
 )
 
 /**
@@ -25,8 +27,8 @@ International|BBC News – World|https://feeds.bbci.co.uk/news/world/rss.xml|htt
 International|BBC News – Top Stories|https://feeds.bbci.co.uk/news/rss.xml|https://www.bbc.com/news|GB|en|N|N
 International|Al Jazeera English|https://www.aljazeera.com/xml/rss/all.xml|https://www.aljazeera.com|QA|en|N|Y
 International|The Guardian – World|https://www.theguardian.com/world/rss|https://www.theguardian.com/world|GB|en|N|Y
-International|Deutsche Welle (English)|https://rss.dw.com/rdf/rss-en-all|https://www.dw.com/en|DE|en|N|N
-International|France 24 (English)|https://www.france24.com/en/rss|https://www.france24.com/en|FR|en|N|N
+International|Deutsche Welle (English)|https://rss.dw.com/rdf/rss-en-all|https://www.dw.com/en|DE|en|N|Y
+International|France 24 (English)|https://www.france24.com/en/rss|https://www.france24.com/en|FR|en|N|Y
 International|RFI (English)|https://www.rfi.fr/en/rss|https://www.rfi.fr/en|FR|en|N|N
 International|UN News|https://news.un.org/feed/subscribe/en/news/all/rss.xml|https://news.un.org|-|en|N|N
 International|Euronews|https://www.euronews.com/rss?format=mrss&level=theme&name=news|https://www.euronews.com|FR|en|N|N
@@ -40,14 +42,19 @@ Canada – National|CBC News – Business|https://www.cbc.ca/webfeed/rss/rss-bus
 Canada – National|CBC News – Indigenous|https://www.cbc.ca/webfeed/rss/rss-indigenous|https://www.cbc.ca/news/indigenous|CA|en|N|N
 Canada – National|Global News|https://globalnews.ca/feed/|https://globalnews.ca|CA|en|N|Y
 Canada – National|National Post|https://nationalpost.com/feed|https://nationalpost.com|CA|en|N|N
-Canada – National|The Globe and Mail – Canada|https://www.theglobeandmail.com/arc/outboundfeeds/rss/category/canada/|https://www.theglobeandmail.com|CA|en|N|N
+Canada – National|The Globe and Mail – Canada|https://www.theglobeandmail.com/arc/outboundfeeds/rss/category/canada/|https://www.theglobeandmail.com|CA|en|N|Y
 Canada – National|The Globe and Mail – Politics|https://www.theglobeandmail.com/arc/outboundfeeds/rss/category/politics/|https://www.theglobeandmail.com|CA|en|N|N
 Canada – National|Toronto Sun|https://torontosun.com/feed|https://torontosun.com|CA-ON:toronto|en|N|N
 Canada – National|CityNews Toronto|https://toronto.citynews.ca/feed/|https://toronto.citynews.ca|CA-ON:toronto|en|Y|N
+Canada – National|The Canadian Press|https://www.thecanadianpressnews.ca/|https://www.thecanadianpressnews.ca|CA|en|N|Y|WEBSITE
+Canada – National|CTV News|https://www.ctvnews.ca/arc/outboundfeeds/sitemap-news/latest/|https://www.ctvnews.ca|CA|en|N|Y|SITEMAP
+United States|CNBC – Top News|https://www.cnbc.com/id/100003114/device/rss/rss.html|https://www.cnbc.com|US|en|N|Y
+United States|MS NOW|https://www.ms.now/feed|https://www.ms.now|US|en|N|Y
+Asia|CGTN – World|https://www.cgtn.com/subscribe/rss/section/world.xml|https://www.cgtn.com|CN|en|N|Y
 Canada – National|The Hub|https://thehub.ca/feed/|https://thehub.ca|CA|en|N|N
 Canada – National|The Tyee|https://thetyee.ca/rss2.xml|https://thetyee.ca|CA-BC|en|N|N
 Canada – National|The Narwhal|https://thenarwhal.ca/feed/|https://thenarwhal.ca|CA|en|N|N
-Canada – National|APTN News|https://www.aptnnews.ca/feed/|https://www.aptnnews.ca|CA|en|N|N
+Canada – National|APTN News|https://www.aptnnews.ca/feed/|https://www.aptnnews.ca|CA|en|N|Y
 Canada – National|Canadaland|https://www.canadaland.com/feed/|https://www.canadaland.com|CA|en|N|N
 Canada – National|Radio-Canada Info|https://ici.radio-canada.ca/rss/4159|https://ici.radio-canada.ca|CA|fr|N|N
 Canada – National|Le Devoir|https://www.ledevoir.com/rss/manchettes.xml|https://www.ledevoir.com|CA-QC|fr|N|N
@@ -58,7 +65,7 @@ Saskatchewan|Saskatoon StarPhoenix|https://thestarphoenix.com/feed|https://thest
 Saskatchewan|Global News Regina|https://globalnews.ca/regina/feed/|https://globalnews.ca/regina|CA-SK:regina|en|Y|N
 Saskatchewan|Global News Saskatoon|https://globalnews.ca/saskatoon/feed/|https://globalnews.ca/saskatoon|CA-SK:saskatoon|en|Y|N
 Saskatchewan|SASKTODAY.ca|https://www.sasktoday.ca/rss|https://www.sasktoday.ca|CA-SK|en|Y|N
-Saskatchewan|paNOW (Prince Albert)|https://panow.com/feed/|https://panow.com|CA-SK:prince-albert|en|Y|N
+Saskatchewan|paNOW (Prince Albert)|https://panow.com/feed/|https://panow.com|CA-SK:prince-albert|en|Y|Y
 Canada – Provincial|CBC Manitoba|https://www.cbc.ca/webfeed/rss/rss-canada-manitoba|https://www.cbc.ca/news/canada/manitoba|CA-MB|en|Y|N
 Canada – Provincial|CBC Calgary|https://www.cbc.ca/webfeed/rss/rss-canada-calgary|https://www.cbc.ca/news/canada/calgary|CA-AB:calgary|en|Y|N
 Canada – Provincial|CBC Edmonton|https://www.cbc.ca/webfeed/rss/rss-canada-edmonton|https://www.cbc.ca/news/canada/edmonton|CA-AB:edmonton|en|Y|N
@@ -80,11 +87,10 @@ United States|PBS NewsHour|https://www.pbs.org/newshour/feeds/rss/headlines|http
 United States|The New York Times – Home|https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml|https://www.nytimes.com|US|en|N|N
 United States|The Washington Post – World|https://feeds.washingtonpost.com/rss/world|https://www.washingtonpost.com|US|en|N|N
 United States|The Wall Street Journal – World|https://feeds.a.dj.com/rss/RSSWorldNews.xml|https://www.wsj.com|US|en|N|N
-United States|CBS News|https://www.cbsnews.com/latest/rss/main|https://www.cbsnews.com|US|en|N|N
-United States|ABC News (US)|https://feeds.abcnews.com/abcnews/topstories|https://abcnews.go.com|US|en|N|N
-United States|NBC News|https://feeds.nbcnews.com/nbcnews/public/news|https://www.nbcnews.com|US|en|N|N
+United States|CBS News|https://www.cbsnews.com/latest/rss/main|https://www.cbsnews.com|US|en|N|Y
+United States|ABC News (US)|https://abcnews.go.com/abcnews/topstories|https://abcnews.go.com|US|en|N|Y
+United States|NBC News|https://feeds.nbcnews.com/nbcnews/public/news|https://www.nbcnews.com|US|en|N|Y
 United States|Fox News|https://moxie.foxnews.com/google-publisher/latest.xml|https://www.foxnews.com|US|en|N|N
-United States|CNN – Top Stories|http://rss.cnn.com/rss/cnn_topstories.rss|https://www.cnn.com|US|en|N|N
 United States|Politico|https://rss.politico.com/politics-news.xml|https://www.politico.com|US|en|N|N
 United States|The Hill|https://thehill.com/feed/|https://thehill.com|US|en|N|N
 United States|The Atlantic|https://www.theatlantic.com/feed/all/|https://www.theatlantic.com|US|en|N|N
@@ -165,7 +171,7 @@ Space & Astronomy|The Planetary Society|https://www.planetary.org/rss/articles|h
             DirectorySource(
                 category = f[0], name = f[1], feedUrl = f[2], homepage = f[3],
                 placeCode = f[4].takeUnless { it == "-" }, language = f[5],
-                local = f[6] == "Y", starter = f[7] == "Y",
+                local = f[6] == "Y", starter = f[7] == "Y", kind = f.getOrElse(8) { "RSS" },
             )
         }
     }

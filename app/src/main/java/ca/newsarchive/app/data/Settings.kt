@@ -34,7 +34,11 @@ data class AppSettings(
     val quietHours: Boolean = true,
     val retentionDays: Int = 0,
     val firstRunDone: Boolean = false,
+    val directoryVersion: Int = 0,
 )
+
+/** Bump when SourceDirectory changes need applying to existing installs (see Repository.applyDirectoryUpdates). */
+const val DIRECTORY_VERSION = 2
 
 class SettingsStore(context: Context) {
     private val prefs: SharedPreferences = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
@@ -59,6 +63,7 @@ class SettingsStore(context: Context) {
         quietHours = prefs.getBoolean("quietHours", true),
         retentionDays = prefs.getInt("retentionDays", 0),
         firstRunDone = prefs.getBoolean("firstRunDone", false),
+        directoryVersion = prefs.getInt("directoryVersion", 0),
     )
 
     fun update(block: (AppSettings) -> AppSettings) {
@@ -80,6 +85,7 @@ class SettingsStore(context: Context) {
             .putBoolean("quietHours", n.quietHours)
             .putInt("retentionDays", n.retentionDays)
             .putBoolean("firstRunDone", n.firstRunDone)
+            .putInt("directoryVersion", n.directoryVersion)
             .apply()
         state.value = n
     }

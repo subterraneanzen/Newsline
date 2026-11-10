@@ -39,8 +39,38 @@ class Repository(
         db.sources().insertAll(SourceDirectory.all.filter { it.starter }.map { it.toEntity(enabled = true) })
     }
 
+    /**
+     * Brings an existing install up to date with directory changes shipped in an app update:
+     * adds and turns on sources the user asked to have built in, and moves feeds whose address changed.
+     * Runs once per [DIRECTORY_VERSION]; never removes a source or any archived article.
+     */
+    suspend fun applyDirectoryUpdates(fromVersion: Int) {
+        if (fromVersion < 2) {
+            // Moved feed addresses (old -> new).
+            val moved = mapOf("https://feeds.abcnews.com/abcnews/topstories" to "https://abcnews.go.com/abcnews/topstories")
+            for ((old, new) in moved) {
+                val s = db.sources().byUrl(old) ?: continue
+                if (db.sources().byUrl(new) == null) db.sources().update(s.copy(url = new, etag = null, lastModifiedHeader = null))
+            }
+            val wanted = setOf(
+                "https://panow.com/feed/", "https://thestarphoenix.com/feed", "https://leaderpost.com/feed",
+                "https://www.aptnnews.ca/feed/", "https://www.thecanadianpressnews.ca/", "https://www.cbc.ca/webfeed/rss/rss-topstories",
+                "https://www.ctvnews.ca/arc/outboundfeeds/sitemap-news/latest/", "https://www.theglobeandmail.com/arc/outboundfeeds/rss/category/canada/",
+                "https://globalnews.ca/feed/", "https://www.cnbc.com/id/100003114/device/rss/rss.html", "https://www.cbsnews.com/latest/rss/main",
+                "https://abcnews.go.com/abcnews/topstories", "https://feeds.nbcnews.com/nbcnews/public/news", "https://www.ms.now/feed",
+                "https://www.cgtn.com/subscribe/rss/section/world.xml", "https://www.aljazeera.com/xml/rss/all.xml",
+                "https://www.france24.com/en/rss", "https://rss.dw.com/rdf/rss-en-all",
+            )
+            for (d in SourceDirectory.all.filter { it.feedUrl in wanted }) {
+                val existing = findDuplicate(d.feedUrl)
+                if (existing == null) db.sources().insert(d.toEntity(enabled = true))
+                else if (!existing.enabled) db.sources().setEnabled(existing.id, true)
+            }
+        }
+    }
+
     private fun DirectorySource.toEntity(enabled: Boolean) = SourceEntity(
-        name = name, url = feedUrl, kind = SourceKind.RSS.name, homepage = homepage, category = category,
+        name = name, url = feedUrl, kind = kind, homepage = homepage, category = category,
         placeCode = placeCode, language = language, isLocal = local, enabled = enabled, fromDirectory = true,
     )
 

@@ -56,6 +56,11 @@ private fun kotlinx.coroutines.CoroutineScope.launchStartup(c: AppContainer) = l
         c.repo.seedStarterSources()
         c.settings.update { it.copy(firstRunDone = true) }
     }
+    val dirVersion = c.settings.current.directoryVersion
+    if (dirVersion < ca.newsarchive.app.data.DIRECTORY_VERSION) {
+        runCatching { c.repo.applyDirectoryUpdates(dirVersion) }
+        c.settings.update { it.copy(directoryVersion = ca.newsarchive.app.data.DIRECTORY_VERSION) }
+    }
     c.images.trim()
     runCatching { c.sync.run("app launch") }
 }

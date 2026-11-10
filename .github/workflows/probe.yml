@@ -8,9 +8,11 @@ jobs:
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: 17 }
       - uses: gradle/actions/setup-gradle@v4
-      - run: PROBE_URLS=$PWD/tools/probe/urls.txt ./gradlew --no-daemon -q :core:test --tests '*LiveProbe*'; cat core/build/probe.txt
+      - if: false
+        run: PROBE_URLS=$PWD/tools/probe/urls.txt ./gradlew --no-daemon -q :core:test --tests '*LiveProbe*'; cat core/build/probe.txt
       - run: |
-          curl -sL -A "Mozilla/5.0 (Linux; Android) PersonalNewsArchive/1.0" "https://news.cgtn.com/news/2026-11-09/Beijing-dismisses-Chinese-spy-claims-over-Nvidia-saga-as-smears-1RVNrUyd0VW/p.html" -o c.html; wc -c c.html
-          grep -o 'articleBody[^,]\{0,120\}' c.html | head -3
-          grep -o '<div[^>]*\(content\|article\|text\)[^>]*>' c.html | sort | uniq -c | sort -rn | head -15
-          grep -o '<p[^>]*>[^<]\{40,100\}' c.html | head -5
+          curl -sL -A "Mozilla/5.0 (Linux; Android) PersonalNewsArchive/1.0" "https://news.cgtn.com/news/2026-11-09/Beijing-dismisses-Chinese-spy-claims-over-Nvidia-saga-as-smears-1RVNrUyd0VW/p.html" -o cgtn1.html
+          curl -sL -A "Mozilla/5.0 (Linux; Android) PersonalNewsArchive/1.0" "https://news.cgtn.com/news/2026-11-10/VHJhbnNjcmlwdDkzMjMw/index.html" -o cgtn2.html
+          curl -sL -A "Mozilla/5.0 (Linux; Android) PersonalNewsArchive/1.0" "https://panow.com/2026/11/10/hamiltons-pwhl-team-named-the-havoc-as-league-unveils-expansion-names-and-logos/" -o panow.html
+      - uses: actions/upload-artifact@v4
+        with: { name: pages, path: "*.html" }

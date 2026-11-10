@@ -61,7 +61,7 @@ Canada – National|Le Devoir|https://www.ledevoir.com/rss/manchettes.xml|https:
 Saskatchewan|CBC Saskatchewan|https://www.cbc.ca/webfeed/rss/rss-canada-saskatchewan|https://www.cbc.ca/news/canada/saskatchewan|CA-SK|en|Y|Y
 Saskatchewan|CBC Saskatoon|https://www.cbc.ca/webfeed/rss/rss-canada-saskatoon|https://www.cbc.ca/news/canada/saskatoon|CA-SK:saskatoon|en|Y|N
 Saskatchewan|Regina Leader-Post|https://leaderpost.com/news-sitemap.xml|https://leaderpost.com|CA-SK:regina|en|Y|Y|SITEMAP
-Saskatchewan|Saskatoon StarPhoenix|https://thestarphoenix.com/news-sitemap.xml|https://thestarphoenix.com|CA-SK:saskatoon|en|Y|Y|SITEMAP
+Saskatchewan|Saskatoon StarPhoenix|https://thestarphoenix.com/news-sitemap.xml|https://thestarphoenix.com|CA-SK:saskatoon|en|Y|N|SITEMAP
 Saskatchewan|Global News Regina|https://globalnews.ca/regina/feed/|https://globalnews.ca/regina|CA-SK:regina|en|Y|N
 Saskatchewan|Global News Saskatoon|https://globalnews.ca/saskatoon/feed/|https://globalnews.ca/saskatoon|CA-SK:saskatoon|en|Y|N
 Saskatchewan|SASKTODAY.ca|https://www.sasktoday.ca/rss|https://www.sasktoday.ca|CA-SK|en|Y|N

@@ -45,6 +45,8 @@ class ArticleProcessor(
     /** Returns the new article id, or null if it already existed. */
     suspend fun ingest(source: SourceEntity, item: FeedItem, now: Long = System.currentTimeMillis()): Long? {
         val link = item.link?.takeIf { it.startsWith("http") } ?: return null
+        // Video clips aren't articles: leave them out of the archive.
+        if (ca.newsarchive.core.filter.VideoLinks.isVideo(link, item.title)) return null
         val canonical = UrlCanonicalizer.canonicalize(link)
         if (articles.byCanonical(canonical) != null) return null
         item.guid?.let { g -> if (articles.idByGuid(source.id, g) != null) return null }

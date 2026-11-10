@@ -53,7 +53,7 @@ class Repository(
                 if (db.sources().byUrl(new) == null) db.sources().update(s.copy(url = new, etag = null, lastModifiedHeader = null))
             }
             val wanted = setOf(
-                "https://panow.com/feed/", "https://thestarphoenix.com/feed", "https://leaderpost.com/feed",
+                "https://panow.com/feed/", "https://leaderpost.com/feed",
                 "https://www.aptnnews.ca/feed/", "https://www.thecanadianpressnews.ca/", "https://www.cbc.ca/webfeed/rss/rss-topstories",
                 "https://www.ctvnews.ca/arc/outboundfeeds/sitemap-news/latest/", "https://www.theglobeandmail.com/arc/outboundfeeds/rss/category/canada/",
                 "https://globalnews.ca/feed/", "https://www.cnbc.com/id/100003114/device/rss/rss.html", "https://www.cbsnews.com/latest/rss/main",
@@ -83,7 +83,7 @@ class Repository(
             val wanted = setOf(
                 "https://www.cgtn.com/subscribe/rss/section/world.xml", "https://www.ctvnews.ca/arc/outboundfeeds/rss/?outputType=xml",
                 "https://www.propublica.org/feeds/propublica/main", "https://www.cbc.ca/webfeed/rss/rss-canada-saskatchewan",
-                "https://leaderpost.com/news-sitemap.xml", "https://thestarphoenix.com/news-sitemap.xml", "https://panow.com/feed/",
+                "https://leaderpost.com/news-sitemap.xml", "https://panow.com/feed/",
                 "https://www.sciencedaily.com/rss/all.xml", "https://feeds.arstechnica.com/arstechnica/index",
                 "https://abcnews.go.com/abcnews/topstories", "https://www.cbsnews.com/latest/rss/main",
                 "https://www.cnbc.com/id/100003114/device/rss/rss.html", "https://www.ms.now/feed",
@@ -115,6 +115,12 @@ class Repository(
                 val existing = findDuplicate(d.feedUrl)
                 if (existing == null) db.sources().insert(d.toEntity(enabled = true))
                 else if (!existing.enabled) db.sources().setEnabled(existing.id, true)
+            }
+        }
+        if (fromVersion < 5) {
+            // The user dropped the StarPhoenix from their core sources. Turn it off; its archived articles stay.
+            for (u in listOf("https://thestarphoenix.com/news-sitemap.xml", "https://thestarphoenix.com/feed")) {
+                findDuplicate(u)?.let { db.sources().setEnabled(it.id, false) }
             }
         }
     }

@@ -21,6 +21,11 @@ data class ArticleFilter(
     val collectionId: Long? = null,
     val storyId: Long? = null,
     val minVersions: Int? = null,
+    /**
+     * Leaves out video clips and articles locked behind a subscription. Never applied to the user's own
+     * lists (bookmarks, saved, history, collections), where everything they chose stays visible.
+     */
+    val hideUnreadable: Boolean = true,
     /** Matches articles with ANY of these topics, place tags or publisher categories (used by subject sections). */
     val anyTopics: List<String> = emptyList(),
     val anyPlaces: List<String> = emptyList(),
@@ -66,6 +71,10 @@ object ArticleQuery {
         f.collectionId?.let { where += "a.id IN (SELECT articleId FROM collection_items WHERE collectionId = ?)"; args += it }
         f.storyId?.let { where += "a.storyId = ?"; args += it }
         f.minVersions?.let { where += "a.versionCount >= ?"; args += it }
+        if (f.hideUnreadable && !f.bookmarked && !f.saved && !f.history && f.collectionId == null) {
+            where += "a.extractionStatus != 'PAYWALLED'"
+            where += "(" + ca.newsarchive.core.filter.VideoLinks.SQL_NOT_VIDEO + ")"
+        }
         run {
             val any = mutableListOf<String>()
             if (f.anyTopics.isNotEmpty()) { any += "EXISTS (SELECT 1 FROM topic_tags t2 WHERE t2.articleId = a.id AND t2.topic IN (${f.anyTopics.joinToString(",") { "?" }}))"; args.addAll(f.anyTopics) }

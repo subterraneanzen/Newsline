@@ -50,7 +50,7 @@ data class AppSettings(
 )
 
 /** Bump when SourceDirectory changes need applying to existing installs (see Repository.applyDirectoryUpdates). */
-const val DIRECTORY_VERSION = 4
+const val DIRECTORY_VERSION = 5
 
 class SettingsStore(context: Context) {
     private val prefs: SharedPreferences = context.getSharedPreferences("settings", Context.MODE_PRIVATE)

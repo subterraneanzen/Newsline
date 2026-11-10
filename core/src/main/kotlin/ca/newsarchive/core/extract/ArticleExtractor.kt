@@ -24,6 +24,9 @@ import org.jsoup.nodes.TextNode
  */
 object ArticleExtractor {
 
+    /** Containers that publishers use for the story text itself. */
+    private const val BODY_SELECTORS = "[itemprop=articleBody], [data-component=text-block], #cmsMainContent"
+
     private val negative = Regex(
         "(^|[-_ ])(ad|ads|advert|advertisement|adslot|dfp|promo|promoted|sponsor|sponsored|related|recommend|recommended|" +
             "recirc|newsletter|subscribe|subscription|signup|share|sharing|social|comment|comments|cookie|consent|gdpr|" +
@@ -146,7 +149,7 @@ object ArticleExtractor {
 
     private fun extractBody(doc: Document): Pair<List<Block>, List<ArticleImage>> {
         clean(doc)
-        val explicit = doc.select("[itemprop=articleBody], [data-component=text-block]").firstOrNull()?.takeIf { textLen(it) > 400 }
+        val explicit = doc.select(BODY_SELECTORS).firstOrNull()?.takeIf { textLen(it) > 300 }
         val candidate = explicit ?: bestCandidate(doc) ?: doc.body() ?: return emptyList<Block>() to emptyList()
         val blocks = collectBlocks(candidate)
         val images = candidate.select("img").mapNotNull { img ->
@@ -167,8 +170,16 @@ object ArticleExtractor {
             "select, input, textarea, [hidden], [aria-hidden=true], [role=navigation], [role=banner], [role=complementary], " +
             "[role=dialog], [role=alertdialog], template, object, embed").remove()
         doc.select("header").filter { it.select("p").size < 2 }.forEach { it.remove() }
+        // Never strip a wrapper that holds a known article-body container, even when the wrapper's
+        // class looks like boilerplate (CGTN puts its story text inside "cg2023_liveblog_comment";
+        // paNOW's theme wraps the whole <article> in "sc-sidebar-wrapper"). The same goes for the
+        // wrappers of an <article>/<main> that holds real paragraphs.
+        val protectedEls = HashSet<Element>()
+        doc.select(BODY_SELECTORS).forEach { protectedEls += it; protectedEls += it.parents() }
+        doc.select("article, main").filter { a -> a.select("p").count { it.text().length > 80 } >= 2 }
+            .forEach { protectedEls += it.parents() }
         val toRemove = doc.getAllElements().filter { el ->
-            if (el.tagName() in setOf("html", "body", "article", "main")) return@filter false
+            if (el.tagName() in setOf("html", "body", "article", "main") || el in protectedEls) return@filter false
             val sig = el.className() + " " + el.id()
             sig.isNotBlank() && negative.containsMatchIn(sig) && !el.hasAttr("itemprop")
         }

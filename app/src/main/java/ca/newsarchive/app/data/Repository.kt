@@ -67,6 +67,37 @@ class Repository(
                 else if (!existing.enabled) db.sources().setEnabled(existing.id, true)
             }
         }
+        if (fromVersion < 3) {
+            // Postmedia dropped its RSS feeds (they now redirect to the home page); CTV publishes RSS again.
+            val moved = mapOf(
+                "https://leaderpost.com/feed" to ("https://leaderpost.com/news-sitemap.xml" to SourceKind.SITEMAP.name),
+                "https://thestarphoenix.com/feed" to ("https://thestarphoenix.com/news-sitemap.xml" to SourceKind.SITEMAP.name),
+                "https://www.ctvnews.ca/arc/outboundfeeds/sitemap-news/latest/" to ("https://www.ctvnews.ca/arc/outboundfeeds/rss/?outputType=xml" to SourceKind.RSS.name),
+            )
+            for ((old, target) in moved) {
+                val s = findDuplicate(old) ?: continue
+                if (findDuplicate(target.first) == null) db.sources().update(s.copy(url = target.first, kind = target.second, etag = null, lastModifiedHeader = null))
+            }
+            // Sources the user asked to have working: make sure each is present and on, and clear old
+            // errors so the next collection retries them straight away.
+            val wanted = setOf(
+                "https://www.cgtn.com/subscribe/rss/section/world.xml", "https://www.ctvnews.ca/arc/outboundfeeds/rss/?outputType=xml",
+                "https://www.propublica.org/feeds/propublica/main", "https://www.cbc.ca/webfeed/rss/rss-canada-saskatchewan",
+                "https://leaderpost.com/news-sitemap.xml", "https://thestarphoenix.com/news-sitemap.xml", "https://panow.com/feed/",
+                "https://www.sciencedaily.com/rss/all.xml", "https://feeds.arstechnica.com/arstechnica/index",
+                "https://abcnews.go.com/abcnews/topstories", "https://www.cbsnews.com/latest/rss/main",
+                "https://www.cnbc.com/id/100003114/device/rss/rss.html", "https://www.ms.now/feed",
+                "https://feeds.nbcnews.com/nbcnews/public/news", "https://feeds.npr.org/1001/rss.xml",
+            )
+            for (d in SourceDirectory.all.filter { it.feedUrl in wanted }) {
+                val existing = findDuplicate(d.feedUrl)
+                if (existing == null) db.sources().insert(d.toEntity(enabled = true))
+                else db.sources().update(existing.copy(
+                    enabled = true, kind = d.kind, lastError = null, consecutiveFailures = 0,
+                    status = SourceStatus.UNKNOWN, statusNote = null, etag = null, lastModifiedHeader = null,
+                ))
+            }
+        }
     }
 
     private fun DirectorySource.toEntity(enabled: Boolean) = SourceEntity(

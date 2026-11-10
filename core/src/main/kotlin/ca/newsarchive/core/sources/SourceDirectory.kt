@@ -47,7 +47,7 @@ Canada – National|The Globe and Mail – Politics|https://www.theglobeandmail.
 Canada – National|Toronto Sun|https://torontosun.com/feed|https://torontosun.com|CA-ON:toronto|en|N|N
 Canada – National|CityNews Toronto|https://toronto.citynews.ca/feed/|https://toronto.citynews.ca|CA-ON:toronto|en|Y|N
 Canada – National|The Canadian Press|https://www.thecanadianpressnews.ca/|https://www.thecanadianpressnews.ca|CA|en|N|Y|WEBSITE
-Canada – National|CTV News|https://www.ctvnews.ca/arc/outboundfeeds/sitemap-news/latest/|https://www.ctvnews.ca|CA|en|N|Y|SITEMAP
+Canada – National|CTV News|https://www.ctvnews.ca/arc/outboundfeeds/rss/?outputType=xml|https://www.ctvnews.ca|CA|en|N|Y
 United States|CNBC – Top News|https://www.cnbc.com/id/100003114/device/rss/rss.html|https://www.cnbc.com|US|en|N|Y
 United States|MS NOW|https://www.ms.now/feed|https://www.ms.now|US|en|N|Y
 Asia|CGTN – World|https://www.cgtn.com/subscribe/rss/section/world.xml|https://www.cgtn.com|CN|en|N|Y
@@ -60,8 +60,8 @@ Canada – National|Radio-Canada Info|https://ici.radio-canada.ca/rss/4159|https
 Canada – National|Le Devoir|https://www.ledevoir.com/rss/manchettes.xml|https://www.ledevoir.com|CA-QC|fr|N|N
 Saskatchewan|CBC Saskatchewan|https://www.cbc.ca/webfeed/rss/rss-canada-saskatchewan|https://www.cbc.ca/news/canada/saskatchewan|CA-SK|en|Y|Y
 Saskatchewan|CBC Saskatoon|https://www.cbc.ca/webfeed/rss/rss-canada-saskatoon|https://www.cbc.ca/news/canada/saskatoon|CA-SK:saskatoon|en|Y|N
-Saskatchewan|Regina Leader-Post|https://leaderpost.com/feed|https://leaderpost.com|CA-SK:regina|en|Y|Y
-Saskatchewan|Saskatoon StarPhoenix|https://thestarphoenix.com/feed|https://thestarphoenix.com|CA-SK:saskatoon|en|Y|Y
+Saskatchewan|Regina Leader-Post|https://leaderpost.com/news-sitemap.xml|https://leaderpost.com|CA-SK:regina|en|Y|Y|SITEMAP
+Saskatchewan|Saskatoon StarPhoenix|https://thestarphoenix.com/news-sitemap.xml|https://thestarphoenix.com|CA-SK:saskatoon|en|Y|Y|SITEMAP
 Saskatchewan|Global News Regina|https://globalnews.ca/regina/feed/|https://globalnews.ca/regina|CA-SK:regina|en|Y|N
 Saskatchewan|Global News Saskatoon|https://globalnews.ca/saskatoon/feed/|https://globalnews.ca/saskatoon|CA-SK:saskatoon|en|Y|N
 Saskatchewan|SASKTODAY.ca|https://www.sasktoday.ca/rss|https://www.sasktoday.ca|CA-SK|en|Y|N

@@ -5,4 +5,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: python3 tools/probe/probe.py tools/probe/urls.txt
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      - uses: gradle/actions/setup-gradle@v4
+      - run: PROBE_URLS=$PWD/tools/probe/urls.txt ./gradlew --no-daemon -q :core:test --tests '*LiveProbe*'; cat core/build/probe.txt

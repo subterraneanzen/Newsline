@@ -69,6 +69,28 @@ class Maintenance(private val context: Context, private val db: AppDatabase, pri
 
     suspend fun deleteSourceArticles(sourceId: Long): Int = deleteArticles(db.articles().idsForSource(sourceId))
 
+    /**
+     * Re-checks recent articles against the current Space and Defense & Military rules and removes those
+     * tags where they no longer apply (tags the user added by hand are kept). Nothing else changes.
+     */
+    suspend fun recheckSpaceDefenseTags(days: Int = 60) {
+        val subjects = setOf("Space", "Defense & Military")
+        for (id in db.articles().idsSince(System.currentTimeMillis() - days * 86_400_000L)) {
+            val topics = db.tags().topicsFor(id).filter { it.topic in subjects && !it.manual }
+            val space = db.tags().geoFor(id).firstOrNull { it.code == ca.newsarchive.core.geo.Gazetteer.SPACE_CODE && !it.manual }
+            if (topics.isEmpty() && space == null) continue
+            val v = db.versions().latest(id) ?: continue
+            val paragraphs = ca.newsarchive.app.data.ArticleVersionEntity.decodeBlocks(v.body).map { it.text }
+            val now = ca.newsarchive.core.topic.TopicClassifier.classify(v.title, paragraphs).associateBy { it.topic }
+            for (t in topics) {
+                val fresh = now[t.topic]
+                if (fresh == null) db.tags().deleteTopic(id, t.topic)
+                else db.tags().insertTopics(listOf(t.copy(confidence = fresh.confidence)))
+            }
+            if (space != null && ca.newsarchive.core.geo.GeoClassifier.spaceScore(v.title, paragraphs) < 3.0) db.tags().deleteGeo(id, space.code)
+        }
+    }
+
     fun clearImageCache() { java.io.File(context.cacheDir, "images").deleteRecursively() }
 
     /** Flushes the write-ahead log so the main database file is complete (before backup). */

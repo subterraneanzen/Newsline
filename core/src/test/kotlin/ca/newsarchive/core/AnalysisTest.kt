@@ -108,4 +108,24 @@ class AnalysisTest {
         assertTrue("Weather" in names, names.toString())
         assertFalse("Sports" in names)
     }
+
+    @Test fun spaceDefenseIsNotWarNews() {
+        fun names(title: String, vararg p: String) = TopicClassifier.classify(title, p.toList()).map { it.topic }
+        // War reporting stays world news (Conflict & Security), not Defense.
+        val war = names("Russian drones hit Kyiv as Ukraine's army pushes back",
+            "Ukraine's military said its air force shot down 40 drones overnight.", "NATO allies condemned the attack, and troops remain on alert.")
+        assertFalse("Defense & Military" in war, war.toString())
+        assertTrue("Conflict & Security" in war, war.toString())
+        // Remembrance Day ceremonies are not defense news.
+        val poppy = names("Veterans honoured at Remembrance Day ceremony in Regina", "Hundreds gathered to remember soldiers and veterans; army cadets laid wreaths.")
+        assertFalse("Defense & Military" in poppy, poppy.toString())
+        // Real defense news still qualifies.
+        val ships = names("Canada picks builder for new submarines", "The Department of National Defence says the Royal Canadian Navy fleet will be replaced.")
+        assertTrue("Defense & Military" in ships, ships.toString())
+        // Satellite photos of a war zone are not space news.
+        val sat = GeoClassifier.classify("Satellite images show damage at Iranian base", listOf("New satellite photos reveal craters.", "Satellites captured the site."))
+        assertNull(sat.firstOrNull { it.level == GeoLevel.SPACE })
+        assertFalse("Space" in names("Satellite images show damage", "The space between buildings was destroyed; satellites recorded it."))
+        assertTrue("Space" in names("NASA astronauts return from space station", "The SpaceX capsule splashed down."))
+    }
 }

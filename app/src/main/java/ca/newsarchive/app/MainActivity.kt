@@ -59,6 +59,8 @@ private fun kotlinx.coroutines.CoroutineScope.launchStartup(c: AppContainer) = l
     val dirVersion = c.settings.current.directoryVersion
     if (dirVersion < ca.newsarchive.app.data.DIRECTORY_VERSION) {
         runCatching { c.repo.applyDirectoryUpdates(dirVersion) }
+        // v6: stricter Space / Defense rules; take the old, too-loose tags off recent articles.
+        if (dirVersion < 6) runCatching { c.maintenance.recheckSpaceDefenseTags() }
         if (dirVersion < 4) c.settings.update { s ->
             // The Space section becomes Space & Defense (added if the user had no Space section).
             val hs = s.homeSections

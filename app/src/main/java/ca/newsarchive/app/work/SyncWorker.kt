@@ -31,13 +31,18 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
     companion object {
         private const val UNIQUE = "periodic-collection"
 
+        /**
+         * The worker wakes about four times per collection interval and checks a quarter of the sources each
+         * time, so news arrives in small, steady batches instead of one big wave (see SyncEngine).
+         */
+        fun periodMinutes(s: AppSettings): Int = (s.syncIntervalMinutes / 4).coerceAtLeast(15)
+
         fun schedule(context: Context, s: AppSettings) {
             val constraints = Constraints.Builder()
                 .setRequiredNetworkType(if (s.wifiOnly) NetworkType.UNMETERED else NetworkType.CONNECTED)
                 .setRequiresBatteryNotLow(true)
                 .build()
-            val interval = s.syncIntervalMinutes.coerceAtLeast(15).toLong()
-            val req = PeriodicWorkRequestBuilder<SyncWorker>(interval, TimeUnit.MINUTES)
+            val req = PeriodicWorkRequestBuilder<SyncWorker>(periodMinutes(s).toLong(), TimeUnit.MINUTES)
                 .setConstraints(constraints)
                 .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 10, TimeUnit.MINUTES)
                 .build()

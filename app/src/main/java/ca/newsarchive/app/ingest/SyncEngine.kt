@@ -2,6 +2,8 @@ package ca.newsarchive.app.ingest
 
 import ca.newsarchive.app.data.AppDatabase
 import ca.newsarchive.app.data.SettingsStore
+import ca.newsarchive.app.data.SourceEntity
+import ca.newsarchive.app.work.SyncWorker
 import ca.newsarchive.app.data.SyncRunEntity
 import ca.newsarchive.app.notify.Notifier
 import kotlinx.coroutines.NonCancellable
@@ -38,6 +40,21 @@ class SyncEngine(
     val state: StateFlow<SyncState> = _state.asStateFlow()
 
     /**
+     * Automatic runs (background and app launch) check only the stalest share of the due sources, so each
+     * run brings a small batch and sources stay spread out over the interval. Sources overdue by twice their
+     * interval (phone asleep, new source) are always included. Manual refreshes check everything due.
+     */
+    private fun stagger(due: List<SourceEntity>, enabled: Int, trigger: String, force: Boolean, sourceIds: List<Long>?, start: Long): List<SourceEntity> {
+        if (force || sourceIds != null || (trigger != "background" && trigger != "app launch")) return due
+        val s = settings.current
+        val share = SyncWorker.periodMinutes(s).toDouble() / s.syncIntervalMinutes.coerceAtLeast(15)
+        if (share >= 1.0) return due
+        val cap = kotlin.math.ceil(enabled * share).toInt().coerceAtLeast(1)
+        val (overdue, rest) = due.partition { start - (it.lastAttemptAt ?: 0L) >= 2 * it.intervalMinutes * 60_000L }
+        return overdue + rest.take((cap - overdue.size).coerceAtLeast(0))
+    }
+
+    /**
      * @param sourceIds limit to these sources (null = all due sources)
      * @param force ignore intervals and HTTP caching
      * @param timeBudgetMs stop starting new work after this long (WorkManager allows ~10 minutes)
@@ -54,7 +71,7 @@ class SyncEngine(
             val due = all.filter { s ->
                 (sourceIds == null || s.id in sourceIds) &&
                     (force || sourceIds != null || s.lastAttemptAt == null || start - s.lastAttemptAt >= s.intervalMinutes * 60_000L - 120_000L)
-            }.sortedBy { it.lastAttemptAt ?: 0L }
+            }.sortedBy { it.lastAttemptAt ?: 0L }.let { stagger(it, all.size, trigger, force, sourceIds, start) }
             val done = AtomicInteger(0)
             val newCount = AtomicInteger(0)
             val failed = AtomicInteger(0)

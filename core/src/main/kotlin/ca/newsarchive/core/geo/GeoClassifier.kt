@@ -174,8 +174,10 @@ object GeoClassifier {
     fun spaceScore(title: String, paragraphs: List<String>): Double {
         var score = 0.0
         val distinct = HashSet<String>()
-        spaceRegex.findAll(title).forEach { score += 2.0; distinct += it.value.lowercase() }
-        paragraphs.take(8).forEach { p -> spaceRegex.findAll(p).forEach { score += 0.5; distinct += it.value.lowercase() } }
+        // "astronomer" and "astronomers" are one term, not two.
+        fun key(v: String) = v.lowercase().removeSuffix("s")
+        spaceRegex.findAll(title).forEach { score += 2.0; distinct += key(it.value) }
+        paragraphs.take(8).forEach { p -> spaceRegex.findAll(p).forEach { score += 0.5; distinct += key(it.value) } }
         return if (distinct.size >= 2) score else score / 2
     }
 }

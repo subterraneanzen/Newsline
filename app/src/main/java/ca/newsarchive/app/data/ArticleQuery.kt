@@ -30,6 +30,8 @@ data class ArticleFilter(
     val anyTopics: List<String> = emptyList(),
     val anyPlaces: List<String> = emptyList(),
     val anySourceCategories: List<String> = emptyList(),
+    /** Minimum classifier confidence for an [anyTopics] match (manual tags always count). */
+    val minTopicConfidence: Double = 0.0,
     val sort: SortOrder = SortOrder.NEWEST,
     val limit: Int = 60,
 )
@@ -77,7 +79,7 @@ object ArticleQuery {
         }
         run {
             val any = mutableListOf<String>()
-            if (f.anyTopics.isNotEmpty()) { any += "EXISTS (SELECT 1 FROM topic_tags t2 WHERE t2.articleId = a.id AND t2.topic IN (${f.anyTopics.joinToString(",") { "?" }}))"; args.addAll(f.anyTopics) }
+            if (f.anyTopics.isNotEmpty()) { any += "EXISTS (SELECT 1 FROM topic_tags t2 WHERE t2.articleId = a.id AND t2.topic IN (${f.anyTopics.joinToString(",") { "?" }}) AND (t2.confidence >= ? OR t2.manual = 1))"; args.addAll(f.anyTopics); args += f.minTopicConfidence }
             if (f.anyPlaces.isNotEmpty()) { any += "EXISTS (SELECT 1 FROM geo_tags g2 WHERE g2.articleId = a.id AND g2.code IN (${f.anyPlaces.joinToString(",") { "?" }}))"; args.addAll(f.anyPlaces) }
             if (f.anySourceCategories.isNotEmpty()) { any += "s.category IN (${f.anySourceCategories.joinToString(",") { "?" }})"; args.addAll(f.anySourceCategories) }
             if (any.isNotEmpty()) where += "(" + any.joinToString(" OR ") + ")"

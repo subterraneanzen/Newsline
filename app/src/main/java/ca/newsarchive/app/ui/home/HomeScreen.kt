@@ -1,6 +1,14 @@
 package ca.newsarchive.app.ui.home
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -81,8 +89,19 @@ fun HomeScreen(nav: Nav) {
         onDispose { HomeMemory.index = listState.firstVisibleItemIndex; HomeMemory.offset = listState.firstVisibleItemScrollOffset }
     }
     val placedFlow = remember(settings.homeSections, settings.homePlace) { homePlacement(c, settings.homeSections, settings.homePlace) }
-    val placed by placedFlow.collectAsState(HomeMemory.placed)
-    placed?.let { HomeMemory.placed = it }
+    // New arrivals wait behind a "Show new" button so the page doesn't reshuffle while it's being read.
+    val live by placedFlow.collectAsState(HomeMemory.placed)
+    var shown by remember { mutableStateOf(HomeMemory.placed) }
+    val shownIds = remember(shown) { shown?.values?.flatten()?.map { it.id }?.toSet() }
+    val newestShown = remember(shown) { shown?.values?.flatten()?.maxOfOrNull { it.discoveredAt } ?: 0L }
+    // Only articles collected after the ones on screen count as new (not older ones sliding into a section).
+    val fresh = if (shownIds == null) 0 else live?.values?.flatten()?.count { it.id !in shownIds && it.discoveredAt > newestShown } ?: 0
+    LaunchedEffect(live, shownIds) { if (shown == null || fresh == 0 || shown?.keys != live?.keys) shown = live }
+    val liveById = remember(live) { live?.values?.flatten()?.associateBy { it.id }.orEmpty() }
+    // Keep read marks etc. current for the articles already on screen.
+    val placed = shown?.mapValues { (_, l) -> l.map { liveById[it.id] ?: it } }
+    shown?.let { HomeMemory.placed = it }
+    val scope = rememberCoroutineScope()
     val lastSync by remember { c.db.misc().observeLastSync() }.collectAsState(null)
 
     if (total == 0) {
@@ -99,6 +118,7 @@ fun HomeScreen(nav: Nav) {
         return
     }
 
+    Box(Modifier.fillMaxSize()) {
     LazyColumn(Modifier.fillMaxSize(), state = listState) {
         item {
             Text(
@@ -123,12 +143,19 @@ fun HomeScreen(nav: Nav) {
         }
         item { Spacer(Modifier.height(24.dp)) }
     }
+    if (fresh > 0) {
+        FilledTonalButton(
+            onClick = { shown = live; scope.launch { listState.animateScrollToItem(0) } },
+            modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp),
+        ) { Text(if (fresh == 1) "Show 1 new article" else "Show $fresh new articles") }
+    }
+    }
 }
 
 /** Articles about space or defense: by topic, by the Space tag, or from a space/defense publisher. */
 fun spaceDefenseFilter(limit: Int, from: Long? = null, articleType: String? = null) = ArticleFilter(
     anyTopics = HomeSection.spaceDefenseTopics, anyPlaces = HomeSection.spaceDefensePlaces,
-    anySourceCategories = HomeSection.spaceDefenseSourceCategories, from = from, articleType = articleType, limit = limit,
+    anySourceCategories = HomeSection.spaceDefenseSourceCategories, minTopicConfidence = 0.5, from = from, articleType = articleType, limit = limit,
 )
 
 /**

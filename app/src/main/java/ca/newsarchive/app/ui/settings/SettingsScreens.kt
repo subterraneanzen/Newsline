@@ -209,7 +209,7 @@ fun SettingsScreen(nav: Nav) {
             }
             item {
                 SectionHeader("Collection", Modifier.padding(top = 12.dp))
-                ChoiceRow("Background collection at most every", listOf(15 to "15 min", 30 to "30 min", 60 to "1 h", 120 to "2 h", 240 to "4 h", 720 to "12 h"), s.syncIntervalMinutes) { v ->
+                ChoiceRow("Check each source about every", listOf(15 to "15 min", 30 to "30 min", 60 to "1 h", 120 to "2 h", 240 to "4 h", 720 to "12 h"), s.syncIntervalMinutes) { v ->
                     update(reschedule = true) { it.copy(syncIntervalMinutes = v) }
                 }
                 Text(

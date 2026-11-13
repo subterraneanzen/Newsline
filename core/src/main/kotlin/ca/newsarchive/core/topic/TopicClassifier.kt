@@ -4,6 +4,23 @@ data class TopicTag(val topic: String, val confidence: Double)
 
 /** Transparent keyword-based topic tagging. Users can add/remove topics manually in the app. */
 object TopicClassifier {
+    /**
+     * Defense & Military needs at least one of these: terms about armed forces as institutions, their budgets
+     * and their hardware. Words like "military", "army" or "drones" fill every war report, so on their own
+     * they leave a story under Conflict & Security (world news) rather than Defense.
+     */
+    private val defenseAnchors = listOf("pentagon", "department of defense", "department of war", "secretary of defense", "secretary of war",
+        "national defence", "department of national defence", "minister of national defence", "defence minister", "defense secretary",
+        "armed forces", "canadian armed forces", "royal canadian navy", "royal canadian air force", "rcaf", "canadian army",
+        "space force", "marine corps", "warship", "warships", "frigate", "frigates", "destroyer", "destroyers", "submarine", "submarines",
+        "aircraft carrier", "fighter jet", "fighter jets", "f-35", "icbm", "hypersonic", "missile defense", "missile defence", "golden dome",
+        "norad", "defence spending", "defense spending", "defence budget", "defense budget", "military spending", "defence procurement",
+        "defense procurement", "military procurement", "defence contractor", "defense contractor", "defence industry", "defense industry",
+        "lockheed martin", "northrop grumman", "general dynamics", "raytheon", "bae systems", "rheinmetall", "anduril")
+
+    /** Topics that only count when the text contains one of their anchor terms (publisher categories don't count). */
+    private val anchors: Map<String, Set<String>> = mapOf("Defense & Military" to defenseAnchors.toSet())
+
     val topics: Map<String, List<String>> = linkedMapOf(
         "Politics" to listOf("government", "parliament", "minister", "premier", "prime minister", "president", "senate", "senator", "legislature",
             "mla", "mp", "mps", "cabinet", "opposition", "policy", "politics", "political", "liberal", "conservative", "ndp", "democrat",
@@ -18,7 +35,10 @@ object TopicClassifier {
             "gemini", "large language model", "llm", "deepfake", "generative ai", "neural network"),
         "Science" to listOf("science", "scientists", "scientist", "study", "research", "researchers", "physics", "chemistry", "biology", "genome",
             "fossil", "species", "evolution", "university study", "peer-reviewed", "journal nature", "discovery"),
-        "Space" to listOf("nasa", "space", "astronaut", "rocket", "spacex", "satellite", "orbit", "mars", "moon", "lunar", "telescope", "asteroid", "galaxy", "planet"),
+        "Space" to listOf("nasa", "astronaut", "astronauts", "cosmonaut", "spacex", "blue origin", "rocket launch", "spacecraft", "space station",
+            "spacewalk", "space agency", "canadian space agency", "esa", "satellite launch", "into orbit", "low earth orbit", "mars rover",
+            "lunar", "moon landing", "moon mission", "telescope", "asteroid", "galaxy", "exoplanet", "black hole", "artemis", "starship",
+            "falcon 9", "astronomy", "astronomer", "astronomers", "astrophysics", "solar system", "spaceflight"),
         "Climate & Environment" to listOf("climate", "climate change", "global warming", "emissions", "carbon", "greenhouse", "environment", "environmental",
             "wildfire", "wildfires", "drought", "flood", "flooding", "pollution", "biodiversity", "conservation", "renewable", "net zero", "carbon tax"),
         "Health" to listOf("health", "hospital", "hospitals", "doctor", "doctors", "nurses", "patients", "disease", "virus", "covid", "vaccine", "vaccines",
@@ -31,15 +51,8 @@ object TopicClassifier {
             "shooting", "stabbing", "crime", "criminal", "sentenced", "lawsuit", "supreme court", "prison", "investigation", "fraud"),
         "Conflict & Security" to listOf("war", "military", "troops", "army", "missile", "missiles", "drone strike", "airstrike", "airstrikes", "ceasefire",
             "invasion", "nato", "defence", "defense", "attack", "attacks", "soldiers", "conflict", "terrorism", "terrorist", "hostages", "sanctions"),
-        "Defense & Military" to listOf("pentagon", "department of defense", "department of war", "secretary of defense", "secretary of war",
-            "national defence", "department of national defence", "minister of national defence", "defence minister", "defense secretary",
-            "armed forces", "canadian armed forces", "royal canadian navy", "royal canadian air force", "rcaf", "canadian army",
-            "navy", "naval", "air force", "space force", "marine corps", "marines", "army", "military", "warship", "warships", "frigate",
-            "frigates", "destroyer", "destroyers", "submarine", "submarines", "aircraft carrier", "fighter jet", "fighter jets", "f-35",
-            "bomber", "bombers", "drone", "drones", "missile defense", "missile defence", "golden dome", "norad", "hypersonic", "icbm",
-            "nuclear weapons", "warhead", "warheads", "defence spending", "defense spending", "defence budget", "defense budget",
-            "military spending", "procurement", "defence contractor", "defense contractor", "lockheed martin", "northrop grumman",
-            "general dynamics", "raytheon", "bae systems", "rheinmetall", "anduril", "nato", "veterans", "remembrance day"),
+        "Defense & Military" to (defenseAnchors + listOf("military", "army", "navy", "naval", "air force", "troops", "soldiers", "drone", "drones",
+            "nato", "bomber", "bombers", "nuclear weapons", "warhead", "warheads")),
         "Energy" to listOf("oil", "gas", "pipeline", "pipelines", "energy", "electricity", "power grid", "nuclear", "uranium", "solar", "wind power",
             "opec", "oilsands", "oil sands", "lng", "hydro", "potash"),
         "Agriculture" to listOf("farm", "farmers", "farming", "agriculture", "crop", "crops", "harvest", "canola", "wheat", "grain", "cattle", "livestock", "ranchers", "seeding"),
@@ -71,6 +84,7 @@ object TopicClassifier {
             }
         }
         return scores.filter { (t, s) -> s >= 4.0 && (distinct[t]?.size ?: 0) >= 2 }
+            .filter { (t, _) -> anchors[t]?.let { a -> distinct[t].orEmpty().any { it in a } } ?: true }
             .map { (t, s) -> TopicTag(t, minOf(1.0, s / 10.0)) }
             .sortedByDescending { it.confidence }
             .take(4)

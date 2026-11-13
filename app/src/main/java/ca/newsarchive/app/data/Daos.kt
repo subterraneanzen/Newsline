@@ -129,6 +129,7 @@ interface ArticleDao {
     @Query("SELECT COUNT(*) FROM articles") suspend fun count(): Int
     @Query("SELECT COUNT(*) FROM articles WHERE sourceId = :sourceId") suspend fun countForSource(sourceId: Long): Int
     @Query("SELECT id FROM articles WHERE sourceId = :sourceId") suspend fun idsForSource(sourceId: Long): List<Long>
+    @Query("SELECT id FROM articles WHERE sortTime >= :since") suspend fun idsSince(since: Long): List<Long>
     @Query("SELECT * FROM articles ORDER BY id LIMIT :limit OFFSET :offset") suspend fun page(limit: Int, offset: Int): List<ArticleEntity>
 
     /** Articles older than [before] that the user has not kept (bookmark / saved / collection). */

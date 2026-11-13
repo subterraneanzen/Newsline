@@ -409,11 +409,11 @@ internal object GazetteerData {
     val spaceTerms = listOf(
         "nasa", "esa", "spacex", "blue origin", "roscosmos", "isro", "jaxa", "cnsa", "canadian space agency",
         "astronaut", "astronauts", "cosmonaut", "spacecraft", "space station", "iss", "artemis", "orion capsule",
-        "starship", "falcon 9", "rocket launch", "launch pad", "orbit", "orbital", "satellite", "satellites",
+        "starship", "falcon 9", "rocket launch", "launch pad", "satellite launch", "into orbit", "low earth orbit", "orbital",
         "mars", "martian", "moon landing", "lunar", "jupiter", "saturn", "venus", "mercury probe", "pluto", "asteroid",
         "comet", "meteor", "meteorite", "exoplanet", "galaxy", "galaxies", "black hole", "nebula", "supernova",
         "telescope", "james webb", "jwst", "hubble", "astronomy", "astronomer", "astronomers", "astrophysics",
-        "cosmic", "cosmology", "solar system", "solar flare", "aurora", "northern lights", "eclipse", "spacewalk",
-        "rover", "perseverance", "lander", "space agency", "spaceflight", "light-years", "light years",
+        "cosmology", "solar system", "solar flare", "aurora", "northern lights", "eclipse", "spacewalk",
+        "mars rover", "lunar rover", "perseverance rover", "lunar lander", "space agency", "spaceflight", "light-years", "light years",
     )
 }

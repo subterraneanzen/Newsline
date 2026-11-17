@@ -163,7 +163,7 @@ fun SectionHeader(title: String, modifier: Modifier = Modifier, action: (@Compos
     Column(modifier.fillMaxWidth()) {
         HorizontalDivider(thickness = 2.dp, color = MaterialTheme.colorScheme.onSurface)
         Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(title.uppercase(), style = SectionLabel, modifier = Modifier.weight(1f))
+            Text(title.uppercase(), style = SectionLabel, color = MaterialTheme.colorScheme.primary, modifier = Modifier.weight(1f))
             action?.invoke()
         }
     }

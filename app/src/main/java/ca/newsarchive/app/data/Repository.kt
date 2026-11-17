@@ -144,6 +144,20 @@ class Repository(
                 ))
             }
         }
+        if (fromVersion < 9) {
+            // Saskatoon sources for the Local section: CKOM (new) and the Saskatoon editions of CBC and Global.
+            val wanted = setOf(
+                "https://www.ckom.com/feed/", "https://www.cbc.ca/webfeed/rss/rss-canada-saskatoon", "https://globalnews.ca/saskatoon/feed/",
+            )
+            for (d in SourceDirectory.all.filter { it.feedUrl in wanted }) {
+                val existing = findDuplicate(d.feedUrl)
+                if (existing == null) db.sources().insert(d.toEntity(enabled = true))
+                else if (!existing.enabled) db.sources().update(existing.copy(
+                    enabled = true, lastError = null, consecutiveFailures = 0,
+                    status = SourceStatus.UNKNOWN, statusNote = null, etag = null, lastModifiedHeader = null,
+                ))
+            }
+        }
     }
 
     private fun DirectorySource.toEntity(enabled: Boolean) = SourceEntity(

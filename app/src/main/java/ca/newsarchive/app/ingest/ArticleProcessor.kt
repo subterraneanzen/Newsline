@@ -16,6 +16,7 @@ import ca.newsarchive.core.diff.VersionSnapshot
 import ca.newsarchive.core.extract.ArticleExtractor
 import ca.newsarchive.core.geo.GeoClassifier
 import ca.newsarchive.core.geo.Gazetteer
+import ca.newsarchive.core.geo.UrlGeo
 import ca.newsarchive.core.model.Block
 import ca.newsarchive.core.model.BlockType
 import ca.newsarchive.core.model.ExtractedArticle
@@ -81,7 +82,8 @@ class ArticleProcessor(
         val words = body.blocks.sumOf { b -> b.text.split(' ').count { it.isNotBlank() } }
         val revisit = settings.current.revisitEnabled
 
-        val geo = GeoClassifier.classify(title, body.blocks.map { it.text }, item.categories, source.placeCode.takeIf { source.isLocal })
+        // A city or province in the article's own address (CBC, CTV, Global, CKOM) outranks place names in the text.
+        val geo = UrlGeo.apply(GeoClassifier.classify(title, body.blocks.map { it.text }, item.categories, source.placeCode.takeIf { source.isLocal }), link)
         val topics = TopicClassifier.classify(title, body.blocks.map { it.text }, item.categories + listOfNotNull(extracted?.section))
         val sortTime = published?.coerceAtMost(now + 3_600_000) ?: now
         val lead = (item.summary ?: "") + " " + body.blocks.take(3).joinToString(" ") { it.text }
@@ -226,7 +228,7 @@ class ArticleProcessor(
             val paragraphs = ex.blocks.map { it.text }
             if (!a.geoManual) {
                 db.tags().clearAutoGeo(a.id)
-                val g = GeoClassifier.classify(title, paragraphs, emptyList(), source?.takeIf { it.isLocal }?.placeCode)
+                val g = UrlGeo.apply(GeoClassifier.classify(title, paragraphs, emptyList(), source?.takeIf { it.isLocal }?.placeCode), a.url)
                 db.tags().insertGeo(g.map { GeoTagEntity(a.id, it.code, it.level.name, it.confidence, it.inferred) })
             }
             val geoCodes = db.tags().geoFor(a.id).map { it.code }

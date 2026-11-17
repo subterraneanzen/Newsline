@@ -91,6 +91,21 @@ class Maintenance(private val context: Context, private val db: AppDatabase, pri
         }
     }
 
+    /**
+     * Tags recent articles whose web address files them under a city or province (see UrlGeo), so
+     * CBC / CTV / Global / CKOM local stories already in the archive move to their place's home section.
+     */
+    suspend fun applyUrlPlaces(days: Int = 30) {
+        for (id in db.articles().idsSince(System.currentTimeMillis() - days * 86_400_000L)) {
+            val a = db.articles().get(id) ?: continue
+            if (a.geoManual) continue
+            val code = ca.newsarchive.core.geo.UrlGeo.placeFor(a.url) ?: continue
+            db.tags().insertGeo(ca.newsarchive.core.geo.Gazetteer.lineage(code).map {
+                ca.newsarchive.app.data.GeoTagEntity(id, it.code, it.level.name, 1.0, inferred = false)
+            })
+        }
+    }
+
     fun clearImageCache() { java.io.File(context.cacheDir, "images").deleteRecursively() }
 
     /** Flushes the write-ahead log so the main database file is complete (before backup). */

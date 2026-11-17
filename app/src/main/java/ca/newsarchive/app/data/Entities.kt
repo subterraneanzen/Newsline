@@ -7,6 +7,8 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 import ca.newsarchive.core.model.Block
 import ca.newsarchive.core.model.BlockType
+import ca.newsarchive.core.model.InlineStyle
+import ca.newsarchive.core.model.Span
 
 object SourceStatus {
     const val UNKNOWN = "UNKNOWN"          // never fetched
@@ -123,14 +125,36 @@ data class ArticleVersionEntity(
     fun paragraphs(): List<String> = blocks().map { it.text }
 
     companion object {
-        fun encodeBlocks(blocks: List<Block>): String = blocks.joinToString("\n") {
-            val t = when (it.type) { BlockType.HEADING -> 'H'; BlockType.QUOTE -> 'Q'; BlockType.LIST_ITEM -> 'L'; else -> 'P' }
-            "$t|" + it.text.replace('\n', ' ')
+        // Control chars used to append inline spans after a block's text, kept out of the text itself.
+        private const val SPANS = '\u0001'  // text ⟨SPANS⟩ span ⟨SP⟩ span …
+        private const val SP = '\u0002'     // between spans
+        private const val FS = '\u0003'     // between a span's fields: start FS end FS style FS href
+
+        fun encodeBlocks(blocks: List<Block>): String = blocks.joinToString("\n") { b ->
+            val t = when (b.type) { BlockType.HEADING -> 'H'; BlockType.QUOTE -> 'Q'; BlockType.LIST_ITEM -> 'L'; else -> 'P' }
+            val text = b.text.replace('\n', ' ').replace(SPANS, ' ').replace(SP, ' ').replace(FS, ' ')
+            val head = "$t|$text"
+            if (b.spans.isEmpty()) head else head + SPANS + b.spans.joinToString(SP.toString()) { sp ->
+                val style = when (sp.style) { InlineStyle.BOLD -> 'B'; InlineStyle.ITALIC -> 'I'; InlineStyle.CODE -> 'C'; InlineStyle.LINK -> 'L' }
+                "${sp.start}$FS${sp.end}$FS$style$FS${sp.href?.replace(SP, ' ')?.replace(FS, ' ') ?: ""}"
+            }
         }
 
-        fun decodeBlocks(s: String): List<Block> = s.lines().filter { it.length > 2 && it[1] == '|' }.map {
-            val type = when (it[0]) { 'H' -> BlockType.HEADING; 'Q' -> BlockType.QUOTE; 'L' -> BlockType.LIST_ITEM; else -> BlockType.PARAGRAPH }
-            Block(type, it.substring(2))
+        fun decodeBlocks(s: String): List<Block> = s.lines().filter { it.length > 2 && it[1] == '|' }.map { line ->
+            val type = when (line[0]) { 'H' -> BlockType.HEADING; 'Q' -> BlockType.QUOTE; 'L' -> BlockType.LIST_ITEM; else -> BlockType.PARAGRAPH }
+            val core = line.substringBefore(SPANS)
+            val text = core.substring(2)
+            val spans = line.substringAfter(SPANS, "").takeIf { it.isNotEmpty() }?.split(SP)?.mapNotNull { enc ->
+                val f = enc.split(FS)
+                if (f.size < 3) return@mapNotNull null
+                val start = f[0].toIntOrNull() ?: return@mapNotNull null
+                val end = f[1].toIntOrNull() ?: return@mapNotNull null
+                val style = when (f[2]) { "B" -> InlineStyle.BOLD; "I" -> InlineStyle.ITALIC; "C" -> InlineStyle.CODE; "L" -> InlineStyle.LINK; else -> return@mapNotNull null }
+                // Clamp to the text so an offset can never index out of bounds at render time.
+                val a = start.coerceIn(0, text.length); val b = end.coerceIn(a, text.length)
+                if (a == b) null else Span(a, b, style, f.getOrNull(3)?.ifEmpty { null })
+            }.orEmpty()
+            Block(type, text, spans)
         }
     }
 }

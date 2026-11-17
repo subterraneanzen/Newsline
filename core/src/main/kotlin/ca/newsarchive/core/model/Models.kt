@@ -43,8 +43,22 @@ enum class ExtractionStatus {
     FAILED,
 }
 
-/** A block of article body. Paragraph-level granularity is what versions are diffed on. */
-data class Block(val type: BlockType, val text: String)
+/** Inline emphasis the publisher applied inside a block's text. */
+enum class InlineStyle { BOLD, ITALIC, CODE, LINK }
+
+/**
+ * A run of inline formatting over [start, end) of a block's plain [Block.text] (character offsets,
+ * end exclusive). [href] is set only for [InlineStyle.LINK]. Spans may overlap (a bold link is two
+ * spans). Offsets always index the stored plain text, so diffing, search and hashing ignore them.
+ */
+data class Span(val start: Int, val end: Int, val style: InlineStyle, val href: String? = null)
+
+/**
+ * A block of article body. Paragraph-level granularity is what versions are diffed on. [text] is the
+ * plain text used everywhere (diff, search, hashing); [spans] carry the publisher's inline formatting
+ * for display only and are empty when none was found or could not be aligned to [text].
+ */
+data class Block(val type: BlockType, val text: String, val spans: List<Span> = emptyList())
 
 enum class BlockType { PARAGRAPH, HEADING, QUOTE, LIST_ITEM }
 

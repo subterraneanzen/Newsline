@@ -6,6 +6,8 @@ import ca.newsarchive.core.model.Block
 import ca.newsarchive.core.model.BlockType
 import ca.newsarchive.core.model.ExtractedArticle
 import ca.newsarchive.core.model.ExtractionStatus
+import ca.newsarchive.core.model.InlineStyle
+import ca.newsarchive.core.model.Span
 import ca.newsarchive.core.text.Dates
 import ca.newsarchive.core.text.MiniJson
 import ca.newsarchive.core.text.TextNormalizer
@@ -229,7 +231,7 @@ object ArticleExtractor {
             }
             if (type == BlockType.HEADING && text.length > 200) continue
             if (out.lastOrNull()?.text == text) continue
-            out += Block(type, text)
+            out += Block(type, text, inlineSpans(el, text))
         }
         // Trailing headings with no following text are usually "Related" widgets.
         while (out.isNotEmpty() && out.last().type == BlockType.HEADING) out.removeAt(out.size - 1)
@@ -248,6 +250,70 @@ object ArticleExtractor {
         }
         walk(el)
         return sb.toString()
+    }
+
+    // Inline markup we keep for display. Offsets are over the block's cleaned plain text.
+    private class StyledChar(val ch: Char, val bold: Boolean, val italic: Boolean, val code: Boolean, val href: String?)
+
+    private fun isZeroWidth(c: Char) = c == '​' || c == '‌' || c == '‍' || c == '﻿' || c == '­'
+    private fun isCollapsibleWs(c: Char) =
+        c.isWhitespace() || c == ' ' || c in ' '..'​' || c == ' ' || c == ' ' || c == '　'
+
+    /**
+     * Walks [el] and records bold / italic / inline-code / link runs over its text, applying the same
+     * whitespace-collapse and zero-width stripping as [TextNormalizer.clean]. Returns the spans only
+     * when the reconstructed text exactly equals [cleaned] (the stored plain text); otherwise returns
+     * none, so the plain text that diffing and search rely on is never contradicted by stray offsets.
+     */
+    private fun inlineSpans(el: Element, cleaned: String): List<Span> {
+        val raw = ArrayList<StyledChar>()
+        fun walk(e: Element, bold: Boolean, italic: Boolean, code: Boolean, href: String?) {
+            for (n in e.childNodes()) {
+                when (n) {
+                    is TextNode -> n.text().forEach { raw += StyledChar(it, bold, italic, code, href) }
+                    is Element -> {
+                        val tag = n.tagName()
+                        if (tag == "br") { raw += StyledChar(' ', bold, italic, code, href); continue }
+                        val link = if (href == null && tag == "a")
+                            n.absUrl("href").takeIf { it.startsWith("http://") || it.startsWith("https://") } else href
+                        walk(n, bold || tag == "b" || tag == "strong", italic || tag == "i" || tag == "em",
+                            code || tag == "code" || tag == "tt" || tag == "kbd", link)
+                    }
+                }
+            }
+        }
+        walk(el, false, false, false, null)
+
+        val kept = ArrayList<StyledChar>()
+        var pendingWs: StyledChar? = null
+        for (sc in raw) {
+            if (isZeroWidth(sc.ch)) continue
+            // A collapsed space keeps its own run's formatting, not the neighbouring word's, so emphasis
+            // doesn't bleed across the gap between an emphasised word and the next plain one.
+            if (isCollapsibleWs(sc.ch)) { pendingWs = sc; continue }
+            pendingWs?.let { ws -> if (kept.isNotEmpty()) kept += StyledChar(' ', ws.bold, ws.italic, ws.code, ws.href) }
+            pendingWs = null
+            kept += sc
+        }
+        if (kept.size != cleaned.length || kept.withIndex().any { (i, sc) -> sc.ch != cleaned[i] }) return emptyList()
+
+        val spans = ArrayList<Span>()
+        fun runsOf(on: (StyledChar) -> Boolean, style: InlineStyle, hrefOf: (StyledChar) -> String? = { null }) {
+            var i = 0
+            while (i < kept.size) {
+                if (!on(kept[i])) { i++; continue }
+                val href = hrefOf(kept[i])
+                var j = i + 1
+                while (j < kept.size && on(kept[j]) && hrefOf(kept[j]) == href) j++
+                spans += Span(i, j, style, href)
+                i = j
+            }
+        }
+        runsOf({ it.bold }, InlineStyle.BOLD)
+        runsOf({ it.italic }, InlineStyle.ITALIC)
+        runsOf({ it.code }, InlineStyle.CODE)
+        runsOf({ it.href != null }, InlineStyle.LINK) { it.href }
+        return spans
     }
 
     private fun textLen(e: Element): Int = e.text().length

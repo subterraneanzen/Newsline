@@ -51,6 +51,27 @@ class ExtractorTest {
         assertEquals("en", a.language)
     }
 
+    @Test fun keepsInlineFormatting() {
+        val html = page(body = """<main><article class="story-body">
+            <p>The <strong>premier</strong> said the plan is <em>fully funded</em> and cited the
+               <a href="/budget/2026">provincial budget</a> released last week, with more at
+               <a href="https://gov.example/health">gov.example</a> for residents to read.</p>
+            <p>$para</p></article></main>""")
+        val a = ArticleExtractor.extract(html, "https://post.example/news/clinic-funding")
+        val first = a.blocks.first()
+        // Spans index the stored plain text, so slicing the text by a span yields the formatted phrase.
+        fun phrase(style: ca.newsarchive.core.model.InlineStyle) =
+            first.spans.filter { it.style == style }.map { first.text.substring(it.start, it.end) }
+        assertEquals(listOf("premier"), phrase(ca.newsarchive.core.model.InlineStyle.BOLD))
+        assertEquals(listOf("fully funded"), phrase(ca.newsarchive.core.model.InlineStyle.ITALIC))
+        val links = first.spans.filter { it.style == ca.newsarchive.core.model.InlineStyle.LINK }
+        assertEquals(listOf("provincial budget", "gov.example"), links.map { first.text.substring(it.start, it.end) })
+        assertEquals("https://post.example/budget/2026", links[0].href)
+        assertEquals("https://gov.example/health", links[1].href)
+        // The plain text carries no markup, so diffing and search are unaffected.
+        assertTrue(first.text.startsWith("The premier said the plan is fully funded"), first.text)
+    }
+
     @Test fun respectsPaywallMarkup() {
         val ld = """<script type="application/ld+json">{"@context":"https://schema.org","@type":"NewsArticle","headline":"Clinic funding expanded",
             "isAccessibleForFree":"False","hasPart":{"@type":"WebPageElement","isAccessibleForFree":"False","cssSelector":".paywalled"},

@@ -61,9 +61,17 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
@@ -84,6 +92,8 @@ import ca.newsarchive.app.ui.enc
 import ca.newsarchive.app.ui.theme.Serif
 import ca.newsarchive.core.geo.Gazetteer
 import ca.newsarchive.core.model.BlockType
+import ca.newsarchive.core.model.InlineStyle
+import ca.newsarchive.core.model.Span
 import ca.newsarchive.core.topic.TopicClassifier
 import kotlinx.coroutines.launch
 
@@ -200,18 +210,23 @@ fun ReaderScreen(articleId: Long, nav: Nav) {
             }
             items(blocks.size) { i ->
                 val b = blocks[i]
+                val linkColor = MaterialTheme.colorScheme.primary
+                val body = remember(b, linkColor) { inlineFormatted(b.text, b.spans, linkColor) }
                 SelectionContainer {
                     when (b.type) {
-                        BlockType.HEADING -> Text(b.text, fontFamily = Serif, fontWeight = FontWeight.Bold, fontSize = bodySize * 1.15f,
+                        BlockType.HEADING -> Text(body, fontFamily = Serif, fontWeight = FontWeight.Bold, fontSize = bodySize * 1.15f,
                             modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 4.dp))
                         BlockType.QUOTE -> Row(Modifier.padding(horizontal = 20.dp, vertical = 6.dp)) {
                             Box(Modifier.width(3.dp).height(24.dp).background(MaterialTheme.colorScheme.outline))
                             Spacer(Modifier.width(10.dp))
-                            Text(b.text, fontFamily = Serif, fontStyle = FontStyle.Italic, fontSize = bodySize, lineHeight = lineHeight)
+                            Text(body, fontFamily = Serif, fontStyle = FontStyle.Italic, fontSize = bodySize, lineHeight = lineHeight)
                         }
-                        BlockType.LIST_ITEM -> Text("•  " + b.text, fontFamily = Serif, fontSize = bodySize, lineHeight = lineHeight,
-                            modifier = Modifier.padding(start = 28.dp, end = 20.dp, top = 2.dp, bottom = 2.dp))
-                        BlockType.PARAGRAPH -> Text(b.text, fontFamily = Serif, fontSize = bodySize, lineHeight = lineHeight,
+                        BlockType.LIST_ITEM -> Text(
+                            remember(body) { buildAnnotatedString { append("•  "); append(body) } },
+                            fontFamily = Serif, fontSize = bodySize, lineHeight = lineHeight,
+                            modifier = Modifier.padding(start = 28.dp, end = 20.dp, top = 2.dp, bottom = 2.dp),
+                        )
+                        BlockType.PARAGRAPH -> Text(body, fontFamily = Serif, fontSize = bodySize, lineHeight = lineHeight,
                             modifier = Modifier.padding(horizontal = 20.dp, vertical = 7.dp))
                     }
                 }
@@ -259,6 +274,33 @@ fun ReaderScreen(articleId: Long, nav: Nav) {
     if (showPrefs) ReadingPrefsDialog { showPrefs = false }
     if (editTags) EditTagsDialog(articleId) { editTags = false }
     if (pickCollection) CollectionPickerDialog(articleId) { pickCollection = false }
+}
+
+/**
+ * Builds the display string for one body block, re-applying the publisher's inline formatting
+ * (bold, italics, inline code, and clickable links) that [spans] recorded over [text].
+ */
+private fun inlineFormatted(text: String, spans: List<Span>, linkColor: Color): AnnotatedString {
+    if (spans.isEmpty()) return AnnotatedString(text)
+    return buildAnnotatedString {
+        append(text)
+        for (s in spans) {
+            val start = s.start.coerceIn(0, text.length)
+            val end = s.end.coerceIn(start, text.length)
+            if (start == end) continue
+            when (s.style) {
+                InlineStyle.BOLD -> addStyle(SpanStyle(fontWeight = FontWeight.Bold), start, end)
+                InlineStyle.ITALIC -> addStyle(SpanStyle(fontStyle = FontStyle.Italic), start, end)
+                InlineStyle.CODE -> addStyle(SpanStyle(fontFamily = FontFamily.Monospace), start, end)
+                InlineStyle.LINK -> s.href?.let { url ->
+                    addLink(
+                        LinkAnnotation.Url(url, TextLinkStyles(SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline))),
+                        start, end,
+                    )
+                }
+            }
+        }
+    }
 }
 
 @Composable

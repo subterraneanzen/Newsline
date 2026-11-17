@@ -60,7 +60,11 @@ class AnalysisTest {
         assertTrue(StoryClusterer.similarity(a, sameKeywordsDifferentStory) < StoryClusterer.THRESHOLD, "keyword-only ${StoryClusterer.similarity(a, sameKeywordsDifferentStory)}")
         assertEquals(1L, StoryClusterer.assign(b, mapOf(1L to listOf(a), 2L to listOf(unrelated)))?.clusterId)
         assertNull(StoryClusterer.assign(sameKeywordsDifferentStory, mapOf(1L to listOf(a, b))))
-        val far = b.copy(time = t + 10 * 24 * h)
+        // Within the 14-day default window, the same story still links a week and a half apart...
+        val within = b.copy(time = t + 10 * 24 * h)
+        assertTrue(StoryClusterer.similarity(a, within) >= StoryClusterer.THRESHOLD, "10-day same story ${StoryClusterer.similarity(a, within)}")
+        // ...but beyond the window there is no match at all.
+        val far = b.copy(time = t + 20 * 24 * h)
         assertEquals(0.0, StoryClusterer.similarity(a, far))
         assertEquals(a, StorySignature.deserialize(a.serialize()))
     }

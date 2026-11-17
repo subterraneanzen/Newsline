@@ -28,7 +28,7 @@ class AppContainer(context: Context) {
     val settings = SettingsStore(context)
     val db = AppDatabase.build(context)
     val http = HttpFetcher()
-    val stories = StoryService(db)
+    val stories = StoryService(db, settings)
     val processor = ArticleProcessor(db, http, settings, stories)
     val collector = Collector(db, http, processor)
     val telegram = TelegramCollector(db, http)

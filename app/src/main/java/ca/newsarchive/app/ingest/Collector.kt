@@ -22,30 +22,29 @@ class Collector(
     private val http: HttpFetcher,
     private val processor: ArticleProcessor,
 ) {
-    /** Max new articles fully processed per source per run; the rest are picked up next run. */
+    /** Fallback cap when no window is in force; the rest are picked up next run. */
     private val perSourceCap = 30
-
-    /** Larger cap the first time a source is collected, so a 3-day backfill isn't cut short. */
-    private val backfillCap = 60
 
     /**
      * Collects new articles from one source.
      *
-     * @param firstFillSince when this source has never been collected before, ingest everything
-     *   published at or after this instant (the start of two days ago → today plus the previous two
-     *   days) instead of only the newest slice. Null disables the backfill.
-     * @param deadline stop ingesting once this instant passes, so a big first fill can't overrun the run.
+     * @param windowSince ingest every unseen item published at or after this instant (today plus the
+     *   previous N days) instead of only the newest slice, so each refresh re-populates the whole
+     *   window regardless of install history. Applies on every run, not just the first. Null disables it.
+     * @param deadline stop ingesting once this instant passes, so a big catch-up can't overrun the run.
      */
     suspend fun collect(
         source: SourceEntity,
         force: Boolean,
-        firstFillSince: Long? = null,
+        windowSince: Long? = null,
         deadline: Long = Long.MAX_VALUE,
         onArticle: (Long) -> Unit = {},
     ): SourceResult {
         val now = System.currentTimeMillis()
-        // The first successful collection of a source backfills the previous two days; later runs don't.
-        val backfillSince = firstFillSince?.takeIf { source.lastSuccessAt == null }
+        // How many days the window spans, used to size the per-run cap and sitemap depth.
+        val windowDays = windowSince?.let { ((now - it) / 86_400_000L).toInt().coerceAtLeast(1) }
+        // Keep everything published within the window; the cap grows with the window so busy sources aren't cut short.
+        val windowCap = windowDays?.let { (it * 20).coerceIn(60, 200) }
         val attempt = source.copy(lastAttemptAt = now)
         val res = try {
             http.get(source.url, etag = source.etag.takeUnless { force }, lastModified = source.lastModifiedHeader.takeUnless { force })
@@ -65,8 +64,8 @@ class Collector(
                     val parsed = FeedParser.parse(res.text(), res.finalUrl)
                     if (parsed.childSitemaps.isNotEmpty()) {
                         // Sitemap index: newest child sitemaps are usually listed last or named "news".
-                        // A first fill reads a few more children so the previous days' sitemaps are covered.
-                        val childCount = if (backfillSince != null) 4 else 2
+                        // A wider window reads more children so the earlier days' sitemaps are covered.
+                        val childCount = windowDays?.let { (it + 1).coerceIn(3, 12) } ?: 2
                         val children = parsed.childSitemaps.sortedByDescending { if ("news" in it) 1 else 0 }.take(childCount)
                         children.flatMap { c -> runCatching { FeedParser.parse(http.get(c).text(), c).items }.getOrDefault(emptyList()) }
                     } else parsed.items
@@ -79,12 +78,12 @@ class Collector(
         val unseen = items.filter { it.link?.startsWith("http") == true }
             .distinctBy { UrlCanonicalizer.canonicalize(it.link!!) }
             .filter { db.articles().byCanonical(UrlCanonicalizer.canonicalize(it.link!!)) == null }
-        val fresh = if (backfillSince != null) {
-            // First fill: keep everything published within the window, plus undated items (which can't
-            // be placed by date, so treat them as current). Newest original-publish-date first.
-            unseen.filter { (it.publishedAt ?: Long.MAX_VALUE) >= backfillSince }
+        val fresh = if (windowSince != null) {
+            // Keep everything published within the window, plus undated items (which can't be placed by
+            // date, so treat them as current). Newest original-publish-date first.
+            unseen.filter { (it.publishedAt ?: Long.MAX_VALUE) >= windowSince }
                 .sortedByDescending { it.publishedAt ?: Long.MAX_VALUE }
-                .take(backfillCap)
+                .take(windowCap ?: perSourceCap)
         } else {
             unseen.sortedByDescending { it.publishedAt ?: 0L }.take(perSourceCap)
         }

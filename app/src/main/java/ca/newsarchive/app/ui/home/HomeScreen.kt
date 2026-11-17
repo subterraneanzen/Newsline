@@ -16,12 +16,16 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.DisposableEffect
 import ca.newsarchive.app.data.ArticleListItem
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -29,6 +33,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -39,7 +45,10 @@ import ca.newsarchive.app.data.ArticleFilter
 import ca.newsarchive.app.data.ArticleQuery
 import ca.newsarchive.app.data.HomeSection
 import ca.newsarchive.app.data.StoryListItem
+import ca.newsarchive.app.ui.DetailBar
 import ca.newsarchive.app.ui.Fmt
+import ca.newsarchive.app.ui.enc
+import ca.newsarchive.app.ui.components.ArticleList
 import ca.newsarchive.app.ui.components.ArticleRow
 import ca.newsarchive.app.ui.components.EmptyState
 import ca.newsarchive.app.ui.components.Nav
@@ -88,7 +97,8 @@ fun HomeScreen(nav: Nav) {
     DisposableEffect(listState) {
         onDispose { HomeMemory.index = listState.firstVisibleItemIndex; HomeMemory.offset = listState.firstVisibleItemScrollOffset }
     }
-    val placedFlow = remember(settings.homeSections, settings.homePlace) { homePlacement(c, settings.homeSections, settings.homePlace) }
+    val from = remember(settings.feedWindowDays) { windowStart(settings.feedWindowDays) }
+    val placedFlow = remember(settings.homeSections, settings.homePlace, from) { homePlacement(c, settings.homeSections, settings.homePlace, from) }
     // New arrivals wait behind a "Show new" button so the page doesn't reshuffle while it's being read.
     val live by placedFlow.collectAsState(HomeMemory.placed)
     var shown by remember { mutableStateOf(HomeMemory.placed) }
@@ -135,11 +145,12 @@ fun HomeScreen(nav: Nav) {
         for (code in settings.homeSections) {
             val expanded = code !in settings.collapsedSections
             when (code) {
-                HomeSection.MULTI -> multiSourceSection(nav, expanded) { toggle(HomeSection.MULTI) }
+                HomeSection.MULTI -> multiSourceSection(nav, from, expanded) { toggle(HomeSection.MULTI) }
                 else -> {
                     articleSection(
                         code, sectionTitle(code, settings.homePlace), placed?.get(code), placed != null,
                         nav, settings.showImages, expanded,
+                        onOpen = { nav.navigate("section/${enc(code)}") },
                     ) { toggle(code) }
                 }
             }
@@ -160,20 +171,34 @@ fun spaceDefenseFilter(limit: Int, from: Long? = null, articleType: String? = nu
     anyUrlHosts = HomeSection.spaceDefenseHosts, from = from, articleType = articleType, limit = limit,
 )
 
+/** The article filter for one home-section code, optionally windowed to articles on/after [from]. */
+fun sectionFilter(code: String, homePlace: String, from: Long?, limit: Int): ArticleFilter = when (code) {
+    HomeSection.LOCAL -> ArticleFilter(placeCode = homePlace, from = from, limit = limit)
+    HomeSection.LATEST, Gazetteer.WORLD_CODE -> ArticleFilter(from = from, limit = limit)
+    HomeSection.UPDATED -> ArticleFilter(minVersions = 2, from = from, limit = limit)
+    HomeSection.SPACE_DEFENSE -> spaceDefenseFilter(limit = limit, from = from)
+    else -> ArticleFilter(placeCode = code, from = from, limit = limit)
+}
+
+/** Local midnight at the start of the day [daysBack] days before today. */
+fun windowStart(days: Int): Long =
+    Fmt.startOfToday() - (days.coerceAtLeast(1) - 1) * 86_400_000L
+
 /**
  * One flow for every article section on the home page: gathers recent candidates for each section,
  * drops repeats of the same story from the same publisher, then gives each article to its single most
  * pertinent section (see [HomePlacement]).
  */
-private fun homePlacement(c: AppContainer, sections: List<String>, homePlace: String): Flow<Map<String, List<ArticleListItem>>> {
+private fun homePlacement(c: AppContainer, sections: List<String>, homePlace: String, from: Long): Flow<Map<String, List<ArticleListItem>>> {
     val specs = sections.filter { it != HomeSection.MULTI }.map { code ->
-        when (code) {
-            HomeSection.LOCAL -> HomePlacement.Place(code, homePlace) to ArticleFilter(placeCode = homePlace, limit = 40)
-            HomeSection.LATEST, Gazetteer.WORLD_CODE -> HomePlacement.CatchAll(code) to ArticleFilter(limit = 40)
-            HomeSection.UPDATED -> HomePlacement.Updated(code) to ArticleFilter(minVersions = 2, limit = 40)
-            HomeSection.SPACE_DEFENSE -> HomePlacement.Publisher(code, HomeSection.spaceDefenseHosts.toSet()) to spaceDefenseFilter(limit = 40)
-            else -> HomePlacement.Place(code, code) to ArticleFilter(placeCode = code, limit = 40)
+        val section = when (code) {
+            HomeSection.LOCAL -> HomePlacement.Place(code, homePlace)
+            HomeSection.LATEST, Gazetteer.WORLD_CODE -> HomePlacement.CatchAll(code)
+            HomeSection.UPDATED -> HomePlacement.Updated(code)
+            HomeSection.SPACE_DEFENSE -> HomePlacement.Publisher(code, HomeSection.spaceDefenseHosts.toSet())
+            else -> HomePlacement.Place(code, code)
         }
+        section to sectionFilter(code, homePlace, from, 40)
     }
     if (specs.isEmpty()) return flowOf(emptyMap())
     return combine(specs.map { c.db.articles().observeList(ArticleQuery.build(it.second)) }) { it.toList() }.map { lists ->
@@ -197,11 +222,11 @@ private fun homePlacement(c: AppContainer, sections: List<String>, homePlace: St
 
 private fun LazyListScope.articleSection(
     key: String, title: String, list: List<ArticleListItem>?, loaded: Boolean,
-    nav: Nav, showImages: Boolean, expanded: Boolean, onToggle: () -> Unit,
+    nav: Nav, showImages: Boolean, expanded: Boolean, onOpen: () -> Unit, onToggle: () -> Unit,
 ) {
     item(key = "s-$key") {
         SectionCard(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
-            CollapsibleSectionHeader(title, list?.count { !it.isRead } ?: 0, expanded, onToggle)
+            CollapsibleSectionHeader(title, list?.count { !it.isRead } ?: 0, expanded, onToggle, onOpen = onOpen)
             // A collapsed section costs one row: its articles are never composed.
             if (expanded) when {
                 !loaded -> Spacer(Modifier.height(40.dp))
@@ -222,11 +247,10 @@ private fun LazyListScope.articleSection(
     }
 }
 
-private fun LazyListScope.multiSourceSection(nav: Nav, expanded: Boolean, onToggle: () -> Unit) {
+private fun LazyListScope.multiSourceSection(nav: Nav, since: Long, expanded: Boolean, onToggle: () -> Unit) {
     item(key = "s-multi") {
         val c = LocalContainer.current
-        val since = remember { System.currentTimeMillis() - 3L * 86_400_000 }
-        val stories by remember { c.db.stories().observeMultiSource(2, since, 12) }.collectAsState(HomeMemory.stories)
+        val stories by remember(since) { c.db.stories().observeMultiSource(2, since, 12) }.collectAsState(HomeMemory.stories)
         val list = stories
         if (list != null) HomeMemory.stories = list
         SectionCard(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
@@ -234,7 +258,7 @@ private fun LazyListScope.multiSourceSection(nav: Nav, expanded: Boolean, onTogg
             if (expanded) when {
                 list == null -> Spacer(Modifier.height(40.dp))
                 list.isEmpty() -> Text(
-                    "No story has been covered by two or more publishers in the last three days yet.",
+                    "No story has been covered by two or more publishers in this window yet.",
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(16.dp),
                 )
                 else -> Column {
@@ -271,4 +295,36 @@ fun StoryRow(s: StoryListItem, prominent: Boolean, nav: Nav) {
         }
     }
     HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
+}
+
+/**
+ * The fuller view of one home section, opened by tapping the section's header title on the home page.
+ * Shows the last 7 days by default (the home page itself only shows the shorter feed window), with
+ * chips to widen to 14 or 30 days.
+ */
+@Composable
+fun SectionScreen(code: String, nav: Nav) {
+    val c = LocalContainer.current
+    val homePlace = c.settings.current.homePlace
+    var days by rememberSaveable { mutableIntStateOf(7) }
+    var limit by remember { mutableIntStateOf(60) }
+    val filter = remember(code, days, limit) { sectionFilter(code, homePlace, windowStart(days), limit) }
+    val items by remember(filter) { c.db.articles().observeList(ArticleQuery.build(filter)) }.collectAsState(null)
+    Column(Modifier.fillMaxSize()) {
+        DetailBar(sectionTitle(code, homePlace), nav)
+        Row(
+            Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            listOf(7 to "7 days", 14 to "14 days", 30 to "30 days").forEach { (d, l) ->
+                FilterChip(days == d, { days = d; limit = 60 }, label = { Text(l) })
+            }
+        }
+        val list = items
+        if (list == null) { Spacer(Modifier.height(40.dp)); return@Column }
+        ArticleList(
+            list, nav, canLoadMore = list.size >= limit, onLoadMore = { limit += 60 },
+            empty = { EmptyState("Nothing in this period", "No articles for this section in the last $days days.") },
+        )
+    }
 }

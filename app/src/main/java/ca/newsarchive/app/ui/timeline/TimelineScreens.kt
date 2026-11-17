@@ -63,7 +63,7 @@ import ca.newsarchive.app.ui.home.StoryRow
 import ca.newsarchive.core.topic.TopicClassifier
 import kotlinx.coroutines.launch
 
-enum class TimelineRange(val label: String, val days: Long?) { TODAY("Today", 0), WEEK("7 days", 7), MONTH("30 days", 30), YEAR("Last year", 365), ALL("All archived", null) }
+enum class TimelineRange(val label: String, val days: Long?) { TODAY("Today", 0), WEEK("7 days", 7), FORTNIGHT("14 days", 14), MONTH("30 days", 30), YEAR("Last year", 365), ALL("All archived", null) }
 
 private fun TimelineRange.from(): Long? = when (days) { null -> null; 0L -> Fmt.startOfToday(); else -> System.currentTimeMillis() - days * 86_400_000 }
 
@@ -72,8 +72,9 @@ fun TimelineScreen(nav: Nav) {
     val c = LocalContainer.current
     val scope = rememberCoroutineScope()
     val follows by remember { c.db.library().observeFollows() }.collectAsState(emptyList())
-    val since = remember { System.currentTimeMillis() - 7L * 86_400_000 }
-    val developing by remember { c.db.stories().observeDeveloping(since, 40) }.collectAsState(emptyList())
+    val storyDays = c.settings.current.storyWindowDays
+    val since = remember(storyDays) { System.currentTimeMillis() - storyDays.toLong() * 86_400_000 }
+    val developing by remember(since) { c.db.stories().observeDeveloping(since, 40) }.collectAsState(emptyList())
     var keyword by remember { mutableStateOf("") }
 
     LazyColumn(Modifier.fillMaxSize()) {
@@ -105,7 +106,7 @@ fun TimelineScreen(nav: Nav) {
                 }
             }
         }
-        item { SectionHeader("Developing stories · last 7 days", Modifier.padding(top = 16.dp)) }
+        item { SectionHeader("Developing stories · last $storyDays days", Modifier.padding(top = 16.dp)) }
         if (developing.isEmpty()) item {
             EmptyState("No developing stories yet", "Stories appear here when several articles about the same event are archived.")
         }
@@ -118,7 +119,7 @@ fun TimelineScreen(nav: Nav) {
 fun TopicTimelineScreen(kind: String, value: String, nav: Nav) {
     val c = LocalContainer.current
     val scope = rememberCoroutineScope()
-    var range by rememberSaveable { mutableStateOf(TimelineRange.WEEK) }
+    var range by rememberSaveable { mutableStateOf(TimelineRange.FORTNIGHT) }
     var limit by remember { mutableIntStateOf(200) }
     val follows by remember { c.db.library().observeFollows() }.collectAsState(emptyList())
     val follow = follows.firstOrNull { it.kind == kind && it.value == value }

@@ -178,6 +178,16 @@ fun SettingsScreen(nav: Nav) {
             }
             item {
                 SectionHeader("Home screen", Modifier.padding(top = 12.dp))
+                ChoiceRow(
+                    "Show news from the last",
+                    listOf(3 to "3 days", 5 to "5 days", 7 to "7 days", 14 to "14 days", 30 to "30 days"),
+                    s.feedWindowDays,
+                ) { v -> update { it.copy(feedWindowDays = v) } }
+                Text(
+                    "The home page shows today and the days before it, up to this many. Each refresh re-collects this whole window, so the feed fills back in after a reinstall. Tap a section's title to see its last 7 days. Older news stays in the archive (Explore, Search, Timeline).",
+                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                )
                 Column(Modifier.padding(horizontal = 16.dp)) {
                     Text("Default location: ${Gazetteer.pathLabel(s.homePlace).ifBlank { s.homePlace }}", fontWeight = FontWeight.SemiBold)
                     OutlinedTextField(placeQuery, { placeQuery = it }, singleLine = true, label = { Text("Change default location") }, modifier = Modifier.fillMaxWidth())
@@ -220,6 +230,11 @@ fun SettingsScreen(nav: Nav) {
                 SwitchRow("Wi-Fi only", "Background collection waits for an unmetered connection", s.wifiOnly) { v -> update(reschedule = true) { it.copy(wifiOnly = v) } }
                 SwitchRow("Track article changes", "Re-check archived articles and save a new version when their text changes", s.revisitEnabled) { v -> update { it.copy(revisitEnabled = v) } }
                 ChoiceRow("Keep re-checking each article for", listOf(3 to "3 days", 7 to "7 days", 14 to "14 days", 30 to "30 days", 90 to "90 days"), s.revisitDays) { v -> update { it.copy(revisitDays = v) } }
+                ChoiceRow("Group story coverage over", listOf(14 to "14 days", 21 to "21 days", 30 to "30 days"), s.storyWindowDays) { v -> update { it.copy(storyWindowDays = v) } }
+                Text(
+                    "How far apart reports can be and still be joined into one story on a timeline and under Multi-source coverage. Longer lets a developing story reach further back.",
+                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 16.dp),
+                )
             }
             item {
                 SectionHeader("Notifications", Modifier.padding(top = 12.dp))

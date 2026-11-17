@@ -175,8 +175,10 @@ fun SectionHeader(title: String, modifier: Modifier = Modifier, action: (@Compos
 }
 
 /**
- * A home-page section header that folds its section shut. The whole row is one 48dp tap target, and
- * the unread count sits beside the title so a collapsed section still says how much is waiting.
+ * A home-page section header. Tapping the title (and the space beside it) opens the section's fuller
+ * view via [onOpen] when one is given; the chevron on the right folds the section shut. When [onOpen]
+ * is null the title taps fold too. The unread count sits beside the title so a collapsed section still
+ * says how much is waiting.
  */
 @Composable
 fun CollapsibleSectionHeader(
@@ -185,28 +187,35 @@ fun CollapsibleSectionHeader(
     expanded: Boolean,
     onToggle: () -> Unit,
     modifier: Modifier = Modifier,
+    onOpen: (() -> Unit)? = null,
 ) {
     Row(
-        modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(onClick = onToggle).padding(start = 16.dp, end = 8.dp),
+        modifier.fillMaxWidth().heightIn(min = 48.dp).padding(start = 16.dp, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            title.uppercase(), style = SectionLabel, color = MaterialTheme.colorScheme.primary,
-            maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false),
-        )
-        if (newCount > 0) {
-            Spacer(Modifier.width(10.dp))
+        Row(
+            Modifier.weight(1f).heightIn(min = 48.dp).clickable(onClick = onOpen ?: onToggle),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             Text(
-                "$newCount new", style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1,
+                title.uppercase(), style = SectionLabel, color = MaterialTheme.colorScheme.primary,
+                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false),
+            )
+            if (newCount > 0) {
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    "$newCount new", style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1,
+                )
+            }
+        }
+        IconButton(onClick = onToggle) {
+            Icon(
+                if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
+                if (expanded) "Collapse $title" else "Expand $title",
+                Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        Spacer(Modifier.weight(1f))
-        Icon(
-            if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
-            if (expanded) "Collapse $title" else "Expand $title",
-            Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
     }
 }
 

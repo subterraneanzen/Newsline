@@ -77,15 +77,16 @@ class SyncEngine(
             val failed = AtomicInteger(0)
             val newIds = java.util.Collections.synchronizedList(mutableListOf<Long>())
             _state.value = SyncState.Running(0, due.size, "Checking ${due.size} sources", 0)
-            // First time a source is populated, backfill today plus the previous two days.
-            val firstFillSince = startOfDay(start) - 2 * 86_400_000L
+            // Every run re-populates a rolling window: today plus the previous (feedWindowDays − 1) days.
+            val windowDays = settings.current.feedWindowDays.coerceAtLeast(1)
+            val windowSince = startOfDay(start) - (windowDays - 1) * 86_400_000L
             val gate = Semaphore(3)
             coroutineScope {
                 due.map { s ->
                     async {
                         gate.withPermit {
                             if (System.currentTimeMillis() > deadline) return@withPermit
-                            val r = collector.collect(s, force, firstFillSince, deadline) { id -> newIds += id; newCount.incrementAndGet() }
+                            val r = collector.collect(s, force, windowSince, deadline) { id -> newIds += id; newCount.incrementAndGet() }
                             if (r.error != null) failed.incrementAndGet()
                             _state.value = SyncState.Running(done.incrementAndGet(), due.size, s.name, newCount.get())
                         }

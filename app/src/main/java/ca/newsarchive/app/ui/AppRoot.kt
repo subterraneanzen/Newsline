@@ -57,6 +57,7 @@ import ca.newsarchive.app.ui.explore.ExploreScreen
 import ca.newsarchive.app.ui.explore.PlaceScreen
 import ca.newsarchive.app.ui.history.HistoryScreen
 import ca.newsarchive.app.ui.home.HomeScreen
+import ca.newsarchive.app.ui.home.SectionScreen
 import ca.newsarchive.app.ui.library.CollectionScreen
 import ca.newsarchive.app.ui.library.LibraryScreen
 import ca.newsarchive.app.ui.reader.ReaderScreen
@@ -140,6 +141,7 @@ fun AppRoot(pendingArticle: Long?, onPendingConsumed: () -> Unit) {
                 TopicTimelineScreen(it.arguments!!.getString("kind")!!, it.arguments!!.getString("value")!!, navActions)
             }
             composable("place/{code}") { PlaceScreen(it.arguments!!.getString("code")!!, navActions) }
+            composable("section/{code}") { SectionScreen(it.arguments!!.getString("code")!!, navActions) }
             composable("search?q={q}", listOf(navArgument("q") { type = NavType.StringType; defaultValue = "" })) {
                 SearchScreen(it.arguments?.getString("q").orEmpty(), navActions)
             }

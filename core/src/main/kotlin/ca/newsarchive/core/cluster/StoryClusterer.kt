@@ -40,8 +40,8 @@ data class StorySignature(
 data class ClusterMatch(val clusterId: Long, val score: Double)
 
 object StoryClusterer {
-    /** Maximum distance in time between articles in the same story match. */
-    const val TIME_WINDOW_MS = 4L * 24 * 3600 * 1000
+    /** Default maximum distance in time between articles in the same story match (callers may override). */
+    const val TIME_WINDOW_MS = 14L * 24 * 3600 * 1000
     const val THRESHOLD = 0.34
 
     private val stop = (
@@ -105,8 +105,8 @@ object StoryClusterer {
         )
     }
 
-    fun similarity(a: StorySignature, b: StorySignature): Double {
-        if (abs(a.time - b.time) > TIME_WINDOW_MS) return 0.0
+    fun similarity(a: StorySignature, b: StorySignature, windowMs: Long = TIME_WINDOW_MS): Double {
+        if (abs(a.time - b.time) > windowMs) return 0.0
         val titleSim = jaccard(a.titleTokens, b.titleTokens)
         val bodySim = cosine(a.bodyTerms, b.bodyTerms)
         val sharedEntities = a.entities.intersect(b.entities)
@@ -117,9 +117,9 @@ object StoryClusterer {
         if (!gated) return 0.0
         var score = 0.40 * titleSim + 0.30 * bodySim + 0.30 * entitySim
         if (a.places.isNotEmpty() && b.places.isNotEmpty() && a.places.intersect(b.places).isEmpty()) score *= 0.6
-        // Decay slightly with time distance.
-        val hours = abs(a.time - b.time) / 3_600_000.0
-        score *= 1.0 - minOf(hours / 96.0, 1.0) * 0.25
+        // Decay slightly with time distance, scaled across the active window (up to 25% at the far edge).
+        val fraction = abs(a.time - b.time).toDouble() / windowMs
+        score *= 1.0 - minOf(fraction, 1.0) * 0.25
         return score
     }
 
@@ -127,11 +127,11 @@ object StoryClusterer {
      * Picks the best existing cluster for a new article. Each candidate is a cluster id with
      * the signatures of (a sample of) its members. Returns null when nothing is similar enough.
      */
-    fun assign(sig: StorySignature, candidates: Map<Long, List<StorySignature>>): ClusterMatch? {
+    fun assign(sig: StorySignature, candidates: Map<Long, List<StorySignature>>, windowMs: Long = TIME_WINDOW_MS): ClusterMatch? {
         var best: ClusterMatch? = null
         for ((id, members) in candidates) {
             if (members.isEmpty()) continue
-            val sims = members.map { similarity(sig, it) }.sortedDescending()
+            val sims = members.map { similarity(sig, it, windowMs) }.sortedDescending()
             // Strongest link, tempered by agreement with a second member when available.
             val score = if (sims.size >= 2) sims[0] * 0.75 + sims[1] * 0.25 else sims[0]
             if (sims[0] >= THRESHOLD && score >= THRESHOLD * 0.85 && (best == null || score > best.score)) best = ClusterMatch(id, score)

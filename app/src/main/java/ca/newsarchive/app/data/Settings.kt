@@ -38,6 +38,16 @@ data class AppSettings(
     val homeSections: List<String> = HomeSection.defaults,
     /** Home sections the user has folded shut; they stay shut until tapped open again. */
     val collapsedSections: Set<String> = emptySet(),
+    /**
+     * How many days of news the home page shows, and how far back each refresh re-populates (today
+     * plus the previous [feedWindowDays] − 1 days). Default 3 = today, yesterday and the day before.
+     */
+    val feedWindowDays: Int = 3,
+    /**
+     * How many days apart articles may be and still be grouped into one story (timelines and
+     * multi-source coverage). Default 14; raise it to let a story's timeline reach further back.
+     */
+    val storyWindowDays: Int = 14,
     val homePlace: String = "CA-SK:regina",
     val syncIntervalMinutes: Int = 60,
     val wifiOnly: Boolean = false,
@@ -71,6 +81,8 @@ class SettingsStore(context: Context) {
         showImages = prefs.getBoolean("showImages", true),
         homeSections = prefs.getString("homeSections", null)?.split(',')?.filter { it.isNotBlank() } ?: HomeSection.defaults,
         collapsedSections = prefs.getString("collapsedSections", "")?.split(',')?.filter { it.isNotBlank() }?.toSet() ?: emptySet(),
+        feedWindowDays = prefs.getInt("feedWindowDays", 3),
+        storyWindowDays = prefs.getInt("storyWindowDays", 14),
         homePlace = prefs.getString("homePlace", "CA-SK:regina")!!,
         syncIntervalMinutes = prefs.getInt("syncIntervalMinutes", 60),
         wifiOnly = prefs.getBoolean("wifiOnly", false),
@@ -97,6 +109,8 @@ class SettingsStore(context: Context) {
             .putBoolean("showImages", n.showImages)
             .putString("homeSections", n.homeSections.joinToString(","))
             .putString("collapsedSections", n.collapsedSections.joinToString(","))
+            .putInt("feedWindowDays", n.feedWindowDays)
+            .putInt("storyWindowDays", n.storyWindowDays)
             .putString("homePlace", n.homePlace)
             .putInt("syncIntervalMinutes", n.syncIntervalMinutes)
             .putBoolean("wifiOnly", n.wifiOnly)

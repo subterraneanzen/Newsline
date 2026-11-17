@@ -2,6 +2,7 @@ package ca.newsarchive.app.ingest
 
 import androidx.room.withTransaction
 import ca.newsarchive.app.data.AppDatabase
+import ca.newsarchive.app.data.SettingsStore
 import ca.newsarchive.app.data.StoryEntity
 import ca.newsarchive.core.cluster.StoryClusterer
 import ca.newsarchive.core.cluster.StorySignature
@@ -13,16 +14,20 @@ import kotlinx.coroutines.sync.withLock
  * Groups articles from different publishers that report the same story. Keeps an in-memory window
  * of recent signatures during a collection run so each new article is compared cheaply.
  */
-class StoryService(private val db: AppDatabase) {
+class StoryService(private val db: AppDatabase, private val settings: SettingsStore? = null) {
     private data class Member(val articleId: Long, var storyId: Long?, val sig: StorySignature)
 
     private val mutex = Mutex()
     private var window: MutableList<Member>? = null
     private var windowLoadedAt = 0L
 
+    /** How far apart two articles may be published and still join the same story. */
+    private fun windowMs(): Long =
+        (settings?.current?.storyWindowDays?.toLong() ?: 14L) * 86_400_000L
+
     private suspend fun ensureWindow(now: Long) {
         if (window != null && now - windowLoadedAt < 30 * 60_000) return
-        val since = now - StoryClusterer.TIME_WINDOW_MS
+        val since = now - windowMs()
         val list = mutableListOf<Member>()
         val active = db.stories().activeSince(since).map { it.id }
         if (active.isNotEmpty()) {
@@ -50,7 +55,7 @@ class StoryService(private val db: AppDatabase) {
             val l = candidates.getOrPut(key) { mutableListOf() }
             if (l.size < 6) l += m.sig
         }
-        val match = StoryClusterer.assign(sig, candidates)
+        val match = StoryClusterer.assign(sig, candidates, windowMs())
         val storyId: Long? = when {
             match == null -> null
             match.clusterId > 0 -> match.clusterId

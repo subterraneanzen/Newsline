@@ -43,7 +43,8 @@ import ca.newsarchive.app.ui.Fmt
 import ca.newsarchive.app.ui.components.ArticleRow
 import ca.newsarchive.app.ui.components.EmptyState
 import ca.newsarchive.app.ui.components.Nav
-import ca.newsarchive.app.ui.components.SectionHeader
+import ca.newsarchive.app.ui.components.CollapsibleSectionHeader
+import ca.newsarchive.app.ui.components.SectionCard
 import ca.newsarchive.app.ui.enc
 import ca.newsarchive.core.geo.Gazetteer
 import ca.newsarchive.core.home.HomePlacement
@@ -127,9 +128,15 @@ fun HomeScreen(nav: Nav) {
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
             )
         }
+        val toggle: (String) -> Unit = { code ->
+            c.settings.update { s ->
+                s.copy(collapsedSections = if (code in s.collapsedSections) s.collapsedSections - code else s.collapsedSections + code)
+            }
+        }
         for (code in settings.homeSections) {
+            val expanded = code !in settings.collapsedSections
             when (code) {
-                HomeSection.MULTI -> multiSourceSection(nav)
+                HomeSection.MULTI -> multiSourceSection(nav, expanded) { toggle(HomeSection.MULTI) }
                 else -> {
                     val target = when (code) {
                         HomeSection.LOCAL -> "place/${enc(settings.homePlace)}"
@@ -137,7 +144,10 @@ fun HomeScreen(nav: Nav) {
                         HomeSection.UPDATED -> "place/UPDATED"
                         else -> "place/${enc(code)}"
                     }
-                    articleSection(code, sectionTitle(code, settings.homePlace), placed?.get(code), placed != null, target, nav, settings.showImages)
+                    articleSection(
+                        code, sectionTitle(code, settings.homePlace), placed?.get(code), placed != null,
+                        target, nav, settings.showImages, expanded,
+                    ) { toggle(code) }
                 }
             }
         }
@@ -194,48 +204,56 @@ private fun homePlacement(c: AppContainer, sections: List<String>, homePlace: St
     }
 }
 
-private fun LazyListScope.articleSection(key: String, title: String, list: List<ArticleListItem>?, loaded: Boolean, target: String, nav: Nav, showImages: Boolean) {
-    item(key = "h-$key") {
-        SectionHeader(title, Modifier.padding(top = 12.dp)) { TextButton(onClick = { nav.navigate(target) }) { Text("More") } }
-    }
-    item(key = "b-$key") {
-        when {
-            !loaded -> Spacer(Modifier.height(40.dp))
-            list.isNullOrEmpty() -> Text(
-                "No other recent articles for this section. Tap More to see everything tagged here.",
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(16.dp),
-            )
-            else -> Column {
-                list.forEach { a ->
-                    ArticleRow(a, onOpen = { nav.openArticle(a.id, list.map { it.id }) }, showImage = showImages,
-                        onOpenStory = { sid -> if (a.publisherCount >= 3) nav.openCompare(sid) else nav.openStory(sid) })
-                    HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
+private fun LazyListScope.articleSection(
+    key: String, title: String, list: List<ArticleListItem>?, loaded: Boolean, target: String,
+    nav: Nav, showImages: Boolean, expanded: Boolean, onToggle: () -> Unit,
+) {
+    item(key = "s-$key") {
+        SectionCard(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
+            CollapsibleSectionHeader(title, list?.count { !it.isRead } ?: 0, expanded, onToggle) {
+                TextButton(onClick = { nav.navigate(target) }) { Text("More") }
+            }
+            // A collapsed section costs one row: its articles are never composed.
+            if (expanded) when {
+                !loaded -> Spacer(Modifier.height(40.dp))
+                list.isNullOrEmpty() -> Text(
+                    "No other recent articles for this section. Tap More to see everything tagged here.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(16.dp),
+                )
+                else -> Column {
+                    list.forEachIndexed { i, a ->
+                        if (i > 0) HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
+                        ArticleRow(a, onOpen = { nav.openArticle(a.id, list.map { it.id }) }, showImage = showImages,
+                            onOpenStory = { sid -> if (a.publisherCount >= 3) nav.openCompare(sid) else nav.openStory(sid) })
+                    }
                 }
             }
         }
     }
 }
 
-private fun LazyListScope.multiSourceSection(nav: Nav) {
-    item(key = "h-multi") { SectionHeader("Multi-source coverage", Modifier.padding(top = 12.dp)) }
-    item(key = "b-multi") {
+private fun LazyListScope.multiSourceSection(nav: Nav, expanded: Boolean, onToggle: () -> Unit) {
+    item(key = "s-multi") {
         val c = LocalContainer.current
         val since = remember { System.currentTimeMillis() - 3L * 86_400_000 }
         val stories by remember { c.db.stories().observeMultiSource(2, since, 12) }.collectAsState(HomeMemory.stories)
         val list = stories
         if (list != null) HomeMemory.stories = list
-        when {
-            list == null -> Spacer(Modifier.height(40.dp))
-            list.isEmpty() -> Text(
-                "No story has been covered by two or more publishers in the last three days yet.",
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(16.dp),
-            )
-            else -> Column {
-                // Stories covered by five or more publishers are shown first and larger.
-                val (major, minor) = list.partition { it.publisherCount >= 5 }
-                major.forEach { StoryRow(it, prominent = true, nav) }
-                minor.forEach { StoryRow(it, prominent = false, nav) }
+        SectionCard(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
+            CollapsibleSectionHeader("Multi-source coverage", list?.size ?: 0, expanded, onToggle)
+            if (expanded) when {
+                list == null -> Spacer(Modifier.height(40.dp))
+                list.isEmpty() -> Text(
+                    "No story has been covered by two or more publishers in the last three days yet.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(16.dp),
+                )
+                else -> Column {
+                    // Stories covered by five or more publishers are shown first and larger.
+                    val (major, minor) = list.partition { it.publisherCount >= 5 }
+                    major.forEach { StoryRow(it, prominent = true, nav) }
+                    minor.forEach { StoryRow(it, prominent = false, nav) }
+                }
             }
         }
     }

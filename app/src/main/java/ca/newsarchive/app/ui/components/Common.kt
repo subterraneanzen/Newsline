@@ -8,7 +8,9 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,6 +20,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -28,6 +31,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.outlined.BookmarkBorder
+import androidx.compose.material.icons.outlined.ExpandLess
+import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
@@ -166,6 +171,57 @@ fun SectionHeader(title: String, modifier: Modifier = Modifier, action: (@Compos
             Text(title.uppercase(), style = SectionLabel, color = MaterialTheme.colorScheme.primary, modifier = Modifier.weight(1f))
             action?.invoke()
         }
+    }
+}
+
+/**
+ * A home-page section header that folds its section shut. The whole row is one 48dp tap target, and
+ * the unread count sits beside the title so a collapsed section still says how much is waiting.
+ */
+@Composable
+fun CollapsibleSectionHeader(
+    title: String,
+    newCount: Int,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    modifier: Modifier = Modifier,
+    action: (@Composable () -> Unit)? = null,
+) {
+    Row(
+        modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(onClick = onToggle).padding(start = 16.dp, end = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            title.uppercase(), style = SectionLabel, color = MaterialTheme.colorScheme.primary,
+            maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false),
+        )
+        if (newCount > 0) {
+            Spacer(Modifier.width(10.dp))
+            Text(
+                "$newCount new", style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1,
+            )
+        }
+        Spacer(Modifier.weight(1f))
+        if (expanded) action?.invoke()
+        Icon(
+            if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
+            if (expanded) "Collapse $title" else "Expand $title",
+            Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+/** Groups one home section onto its own card: lifted surface, hairline border, no shadow. */
+@Composable
+fun SectionCard(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    Surface(
+        modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+    ) {
+        Column { content() }
     }
 }
 

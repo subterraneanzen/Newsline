@@ -35,6 +35,8 @@ data class AppSettings(
     val lineSpacing: Float = 1.5f,
     val showImages: Boolean = true,
     val homeSections: List<String> = HomeSection.defaults,
+    /** Home sections the user has folded shut; they stay shut until tapped open again. */
+    val collapsedSections: Set<String> = emptySet(),
     val homePlace: String = "CA-SK:regina",
     val syncIntervalMinutes: Int = 60,
     val wifiOnly: Boolean = false,
@@ -67,6 +69,7 @@ class SettingsStore(context: Context) {
         lineSpacing = prefs.getFloat("lineSpacing", 1.5f),
         showImages = prefs.getBoolean("showImages", true),
         homeSections = prefs.getString("homeSections", null)?.split(',')?.filter { it.isNotBlank() } ?: HomeSection.defaults,
+        collapsedSections = prefs.getString("collapsedSections", "")?.split(',')?.filter { it.isNotBlank() }?.toSet() ?: emptySet(),
         homePlace = prefs.getString("homePlace", "CA-SK:regina")!!,
         syncIntervalMinutes = prefs.getInt("syncIntervalMinutes", 60),
         wifiOnly = prefs.getBoolean("wifiOnly", false),
@@ -92,6 +95,7 @@ class SettingsStore(context: Context) {
             .putFloat("lineSpacing", n.lineSpacing)
             .putBoolean("showImages", n.showImages)
             .putString("homeSections", n.homeSections.joinToString(","))
+            .putString("collapsedSections", n.collapsedSections.joinToString(","))
             .putString("homePlace", n.homePlace)
             .putInt("syncIntervalMinutes", n.syncIntervalMinutes)
             .putBoolean("wifiOnly", n.wifiOnly)

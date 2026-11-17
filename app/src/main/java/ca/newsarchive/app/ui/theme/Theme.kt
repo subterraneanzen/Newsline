@@ -38,11 +38,13 @@ private val Dark = darkColorScheme(
     primaryContainer = Color(0xFF2A3F5B), onPrimaryContainer = Color(0xFFD9E2EE),
     secondary = Color(0xFFBFC1C6), secondaryContainer = Color(0xFF34342F), onSecondaryContainer = Color(0xFFE6E4DF),
     tertiary = Color(0xFFE2B47A),
-    background = Color(0xFF121212), onBackground = Color(0xFFE8E6E1),
-    surface = Color(0xFF121212), onSurface = Color(0xFFE8E6E1),
-    surfaceVariant = Color(0xFF2A2A28), onSurfaceVariant = Color(0xFFC4C2BC),
-    surfaceContainer = Color(0xFF1C1C1B), surfaceContainerHigh = Color(0xFF242423),
-    outline = Color(0xFF6E6C66), outlineVariant = Color(0xFF3A3936),
+    // Near-black paper with slightly lifted cards; separation comes from hairline borders, not shadows.
+    background = Color(0xFF121110), onBackground = Color(0xFFE8E6E1),
+    surface = Color(0xFF121110), onSurface = Color(0xFFE8E6E1),
+    surfaceVariant = Color(0xFF26241F), onSurfaceVariant = Color(0xFFA9A39A),
+    surfaceContainerLowest = Color(0xFF0D0C0B), surfaceContainerLow = Color(0xFF171614),
+    surfaceContainer = Color(0xFF1B1A18), surfaceContainerHigh = Color(0xFF221F1D), surfaceContainerHighest = Color(0xFF2A2724),
+    outline = Color(0xFF6E6C66), outlineVariant = Color(0xFF302E2A),
     error = Color(0xFFF2B8B5),
 )
 

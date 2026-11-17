@@ -25,8 +25,27 @@ class Collector(
     /** Max new articles fully processed per source per run; the rest are picked up next run. */
     private val perSourceCap = 30
 
-    suspend fun collect(source: SourceEntity, force: Boolean, onArticle: (Long) -> Unit = {}): SourceResult {
+    /** Larger cap the first time a source is collected, so a 3-day backfill isn't cut short. */
+    private val backfillCap = 60
+
+    /**
+     * Collects new articles from one source.
+     *
+     * @param firstFillSince when this source has never been collected before, ingest everything
+     *   published at or after this instant (the start of two days ago → today plus the previous two
+     *   days) instead of only the newest slice. Null disables the backfill.
+     * @param deadline stop ingesting once this instant passes, so a big first fill can't overrun the run.
+     */
+    suspend fun collect(
+        source: SourceEntity,
+        force: Boolean,
+        firstFillSince: Long? = null,
+        deadline: Long = Long.MAX_VALUE,
+        onArticle: (Long) -> Unit = {},
+    ): SourceResult {
         val now = System.currentTimeMillis()
+        // The first successful collection of a source backfills the previous two days; later runs don't.
+        val backfillSince = firstFillSince?.takeIf { source.lastSuccessAt == null }
         val attempt = source.copy(lastAttemptAt = now)
         val res = try {
             http.get(source.url, etag = source.etag.takeUnless { force }, lastModified = source.lastModifiedHeader.takeUnless { force })
@@ -46,7 +65,9 @@ class Collector(
                     val parsed = FeedParser.parse(res.text(), res.finalUrl)
                     if (parsed.childSitemaps.isNotEmpty()) {
                         // Sitemap index: newest child sitemaps are usually listed last or named "news".
-                        val children = parsed.childSitemaps.sortedByDescending { if ("news" in it) 1 else 0 }.take(2)
+                        // A first fill reads a few more children so the previous days' sitemaps are covered.
+                        val childCount = if (backfillSince != null) 4 else 2
+                        val children = parsed.childSitemaps.sortedByDescending { if ("news" in it) 1 else 0 }.take(childCount)
                         children.flatMap { c -> runCatching { FeedParser.parse(http.get(c).text(), c).items }.getOrDefault(emptyList()) }
                     } else parsed.items
                 }
@@ -55,14 +76,22 @@ class Collector(
             return fail(attempt, "Couldn't read the feed: ${e.message ?: e.javaClass.simpleName}")
         }
 
-        val fresh = items.filter { it.link?.startsWith("http") == true }
+        val unseen = items.filter { it.link?.startsWith("http") == true }
             .distinctBy { UrlCanonicalizer.canonicalize(it.link!!) }
             .filter { db.articles().byCanonical(UrlCanonicalizer.canonicalize(it.link!!)) == null }
-            .sortedByDescending { it.publishedAt ?: 0L }
-            .take(perSourceCap)
+        val fresh = if (backfillSince != null) {
+            // First fill: keep everything published within the window, plus undated items (which can't
+            // be placed by date, so treat them as current). Newest original-publish-date first.
+            unseen.filter { (it.publishedAt ?: Long.MAX_VALUE) >= backfillSince }
+                .sortedByDescending { it.publishedAt ?: Long.MAX_VALUE }
+                .take(backfillCap)
+        } else {
+            unseen.sortedByDescending { it.publishedAt ?: 0L }.take(perSourceCap)
+        }
 
         val newIds = mutableListOf<Long>()
         for (item in fresh) {
+            if (System.currentTimeMillis() > deadline) break
             val id = runCatching { processor.ingest(source, item) }.getOrNull()
             if (id != null) { newIds += id; onArticle(id) }
         }

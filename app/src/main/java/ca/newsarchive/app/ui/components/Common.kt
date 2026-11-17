@@ -185,7 +185,6 @@ fun CollapsibleSectionHeader(
     expanded: Boolean,
     onToggle: () -> Unit,
     modifier: Modifier = Modifier,
-    action: (@Composable () -> Unit)? = null,
 ) {
     Row(
         modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(onClick = onToggle).padding(start = 16.dp, end = 8.dp),
@@ -203,7 +202,6 @@ fun CollapsibleSectionHeader(
             )
         }
         Spacer(Modifier.weight(1f))
-        if (expanded) action?.invoke()
         Icon(
             if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
             if (expanded) "Collapse $title" else "Expand $title",

@@ -77,13 +77,15 @@ class SyncEngine(
             val failed = AtomicInteger(0)
             val newIds = java.util.Collections.synchronizedList(mutableListOf<Long>())
             _state.value = SyncState.Running(0, due.size, "Checking ${due.size} sources", 0)
+            // First time a source is populated, backfill today plus the previous two days.
+            val firstFillSince = startOfDay(start) - 2 * 86_400_000L
             val gate = Semaphore(3)
             coroutineScope {
                 due.map { s ->
                     async {
                         gate.withPermit {
                             if (System.currentTimeMillis() > deadline) return@withPermit
-                            val r = collector.collect(s, force) { id -> newIds += id; newCount.incrementAndGet() }
+                            val r = collector.collect(s, force, firstFillSince, deadline) { id -> newIds += id; newCount.incrementAndGet() }
                             if (r.error != null) failed.incrementAndGet()
                             _state.value = SyncState.Running(done.incrementAndGet(), due.size, s.name, newCount.get())
                         }
@@ -127,3 +129,12 @@ class SyncEngine(
         return run
     }
 }
+
+/** Local midnight at the start of the day containing [t]. */
+private fun startOfDay(t: Long): Long = java.util.Calendar.getInstance().apply {
+    timeInMillis = t
+    set(java.util.Calendar.HOUR_OF_DAY, 0)
+    set(java.util.Calendar.MINUTE, 0)
+    set(java.util.Calendar.SECOND, 0)
+    set(java.util.Calendar.MILLISECOND, 0)
+}.timeInMillis

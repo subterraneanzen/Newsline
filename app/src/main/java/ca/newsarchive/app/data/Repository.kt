@@ -123,6 +123,27 @@ class Repository(
                 findDuplicate(u)?.let { db.sources().setEnabled(it.id, false) }
             }
         }
+        if (fromVersion < 7) {
+            // Space Defense News is now just Defense News and SpaceNews, so the other ten space and
+            // defense publishers go off; their archived articles stay and can be turned back on in Sources.
+            val off = listOf(
+                "https://breakingdefense.com/feed/", "https://www.defenseone.com/rss/all/", "https://www.twz.com/feed",
+                "https://news.usni.org/feed", "https://canadiandefencereview.com/feed/", "https://cdainstitute.ca/feed/",
+                "https://www.space.com/feeds/all", "https://www.nasa.gov/news-release/feed/", "https://spacepolicyonline.com/feed/",
+                "https://api.io.canada.ca/io-server/gc/news/en/v2?dept=spaceagency&sort=publishedDate&orderBy=desc&pick=50&format=atom&atomtitle=Canadian%20Space%20Agency",
+                "https://www.esa.int/rss/news.rss",
+            )
+            for (u in off) findDuplicate(u)?.let { if (it.enabled) db.sources().setEnabled(it.id, false) }
+            // The two that feed the section: present, on, and retried straight away.
+            for (d in SourceDirectory.all.filter { it.feedUrl == "https://www.defensenews.com/feed/" || it.feedUrl == "https://spacenews.com/feed/" }) {
+                val existing = findDuplicate(d.feedUrl)
+                if (existing == null) db.sources().insert(d.toEntity(enabled = true))
+                else db.sources().update(existing.copy(
+                    enabled = true, lastError = null, consecutiveFailures = 0,
+                    status = SourceStatus.UNKNOWN, statusNote = null, etag = null, lastModifiedHeader = null,
+                ))
+            }
+        }
     }
 
     private fun DirectorySource.toEntity(enabled: Boolean) = SourceEntity(

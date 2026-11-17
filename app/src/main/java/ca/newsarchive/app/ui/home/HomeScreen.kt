@@ -73,7 +73,7 @@ fun sectionTitle(code: String, homePlace: String): String = when (code) {
     HomeSection.MULTI -> "Multi-source coverage"
     HomeSection.LATEST -> "Latest"
     HomeSection.UPDATED -> "Recently updated articles"
-    HomeSection.SPACE_DEFENSE -> "Space & Defense"
+    HomeSection.SPACE_DEFENSE -> "Space Defense News"
     Gazetteer.WORLD_CODE -> "World"
     Gazetteer.SPACE_CODE -> "Space"
     else -> Gazetteer.get(code)?.name ?: code
@@ -162,10 +162,9 @@ fun HomeScreen(nav: Nav) {
     }
 }
 
-/** Articles about space or defense: by topic, by the Space tag, or from a space/defense publisher. */
+/** Space Defense News: everything from Defense News and SpaceNews, and nothing else. */
 fun spaceDefenseFilter(limit: Int, from: Long? = null, articleType: String? = null) = ArticleFilter(
-    anyTopics = HomeSection.spaceDefenseTopics, anyPlaces = HomeSection.spaceDefensePlaces,
-    anySourceCategories = HomeSection.spaceDefenseSourceCategories, minTopicConfidence = 0.5, from = from, articleType = articleType, limit = limit,
+    anyUrlHosts = HomeSection.spaceDefenseHosts, from = from, articleType = articleType, limit = limit,
 )
 
 /**
@@ -179,9 +178,7 @@ private fun homePlacement(c: AppContainer, sections: List<String>, homePlace: St
             HomeSection.LOCAL -> HomePlacement.Place(code, homePlace) to ArticleFilter(placeCode = homePlace, limit = 40)
             HomeSection.LATEST, Gazetteer.WORLD_CODE -> HomePlacement.CatchAll(code) to ArticleFilter(limit = 40)
             HomeSection.UPDATED -> HomePlacement.Updated(code) to ArticleFilter(minVersions = 2, limit = 40)
-            HomeSection.SPACE_DEFENSE -> HomePlacement.Subject(
-                code, HomeSection.spaceDefenseTopics.toSet(), HomeSection.spaceDefensePlaces.toSet(), HomeSection.spaceDefenseSourceCategories.toSet(),
-            ) to spaceDefenseFilter(limit = 40)
+            HomeSection.SPACE_DEFENSE -> HomePlacement.Publisher(code, HomeSection.spaceDefenseHosts.toSet()) to spaceDefenseFilter(limit = 40)
             else -> HomePlacement.Place(code, code) to ArticleFilter(placeCode = code, limit = 40)
         }
     }
@@ -197,6 +194,7 @@ private fun homePlacement(c: AppContainer, sections: List<String>, homePlace: St
             HomePlacement.Candidate(
                 a.id, a.versionCount, tags[a.id].orEmpty().map { HomePlacement.Tag(it.code, it.confidence, it.inferred) },
                 topics[a.id].orEmpty().map { HomePlacement.TopicScore(it.topic, it.confidence) }, categories[a.sourceId],
+                UrlCanonicalizer.host(a.url),
             )
         }
         val byId = pool.associateBy { it.id }

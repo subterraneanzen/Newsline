@@ -17,10 +17,11 @@ object HomeSection {
     const val SPACE_DEFENSE = "SPACE_DEFENSE" // space and defense/military news, by subject rather than place
     val defaults = listOf(LOCAL, MULTI, "CA-SK", "CA", "US", "C-EU", "WORLD", SPACE_DEFENSE)
 
-    /** Topics, tags and publisher categories that make up the Space & Defense section. */
-    val spaceDefenseTopics = listOf("Space", "Defense & Military")
-    val spaceDefensePlaces = listOf("SPACE")
-    val spaceDefenseSourceCategories = listOf("Space & Astronomy", "Defense & Military")
+    /**
+     * Space Defense News is fed by these two publishers only. Picking the section by publisher rather
+     * than by subject keeps world and war stories out of it without any keyword guessing.
+     */
+    val spaceDefenseHosts = listOf("defensenews.com", "spacenews.com")
 }
 
 data class AppSettings(
@@ -52,7 +53,7 @@ data class AppSettings(
 )
 
 /** Bump when SourceDirectory changes need applying to existing installs (see Repository.applyDirectoryUpdates). */
-const val DIRECTORY_VERSION = 6
+const val DIRECTORY_VERSION = 7
 
 class SettingsStore(context: Context) {
     private val prefs: SharedPreferences = context.getSharedPreferences("settings", Context.MODE_PRIVATE)

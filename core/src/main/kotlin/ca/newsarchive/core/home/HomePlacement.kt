@@ -28,6 +28,12 @@ object HomePlacement {
         val sourceCategories: Set<String> = emptySet(),
         val minConfidence: Double = 0.5,
     ) : Section
+    /**
+     * A section fed by named publishers only: an article belongs here when it was published on one of
+     * [hosts] (or a subdomain of one), whatever its subject. Like [Subject], it beats place sections,
+     * so a Defense News story about Ottawa stays here rather than appearing under Canada.
+     */
+    data class Publisher(override val key: String, val hosts: Set<String>) : Section
     data class Updated(override val key: String) : Section
     data class CatchAll(override val key: String) : Section
 
@@ -39,7 +45,15 @@ object HomePlacement {
         val tags: List<Tag>,
         val topics: List<TopicScore> = emptyList(),
         val sourceCategory: String? = null,
+        /** Host the article was published on, lowercase and without a leading "www." */
+        val host: String? = null,
     )
+
+    /** True when [host] is one of [hosts] or a subdomain of one. */
+    fun hostMatches(host: String?, hosts: Set<String>): Boolean {
+        val h = host?.lowercase()?.removePrefix("www.") ?: return false
+        return hosts.any { val w = it.lowercase().removePrefix("www."); h == w || h.endsWith(".$w") }
+    }
 
     /** [candidates] newest first; returns up to [perSection] article ids per section key, newest first. */
     fun assign(sections: List<Section>, candidates: List<Candidate>, perSection: Int = 5): Map<String, List<Long>> {
@@ -77,6 +91,7 @@ object HomePlacement {
                     ).maxOrNull()
                     conf?.let { SUBJECT_BONUS + it * 100 }
                 }
+                is Publisher -> if (hostMatches(a.host, s.hosts)) SUBJECT_BONUS + 100.0 else null
                 is Updated -> if (a.versionCount >= 2) -1.0 else null
                 is CatchAll -> -2.0
             } ?: continue

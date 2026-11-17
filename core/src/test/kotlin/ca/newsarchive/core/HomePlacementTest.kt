@@ -64,4 +64,24 @@ class HomePlacementTest {
         )
         assertEquals("Defense & Military", t.first().topic)
     }
+
+    private val withPublisher = listOf(
+        HomePlacement.Place("CA", "CA"), HomePlacement.Place("US", "US"),
+        HomePlacement.Publisher("SPACE_DEFENSE", setOf("defensenews.com", "spacenews.com")),
+        HomePlacement.CatchAll("WORLD"),
+    )
+    private fun pub(host: String?, vararg tags: Tag) =
+        HomePlacement.bestSection(withPublisher, Candidate(1, 1, tags.toList(), host = host))?.key
+
+    @Test fun publisherSectionTakesOnlyItsOwnPublishers() {
+        // Both named publishers land in the section, subdomains and www included, whatever the place.
+        assertEquals("SPACE_DEFENSE", pub("www.defensenews.com", Tag("US", 1.0, false)))
+        assertEquals("SPACE_DEFENSE", pub("spacenews.com", Tag("CA", 1.0, false)))
+        assertEquals("SPACE_DEFENSE", pub("feeds.spacenews.com"))
+        // Anyone else keeps their place section, even a space or defense story from another outlet.
+        assertEquals("US", pub("www.nasa.gov", Tag("US", 1.0, false)))
+        assertEquals("CA", pub("breakingdefense.com", Tag("CA", 0.9, false)))
+        assertEquals("WORLD", pub("notdefensenews.com"))
+        assertEquals("WORLD", pub(null))
+    }
 }

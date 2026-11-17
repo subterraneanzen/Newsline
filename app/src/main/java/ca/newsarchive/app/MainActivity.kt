@@ -61,6 +61,15 @@ private fun kotlinx.coroutines.CoroutineScope.launchStartup(c: AppContainer) = l
         runCatching { c.repo.applyDirectoryUpdates(dirVersion) }
         // v6: stricter Space / Defense rules; take the old, too-loose tags off recent articles.
         if (dirVersion < 6) runCatching { c.maintenance.recheckSpaceDefenseTags() }
+        if (dirVersion < 8) c.settings.update { s ->
+            // Saskatoon is the new default home place: move installs still on the old Regina default over.
+            val place = if (s.homePlace == "CA-SK:regina") "CA-SK:saskatoon" else s.homePlace
+            // Multi-source coverage now sits at the bottom of the home list; relocate it, keeping the rest in place.
+            val sections = if (ca.newsarchive.app.data.HomeSection.MULTI in s.homeSections)
+                s.homeSections.filterNot { it == ca.newsarchive.app.data.HomeSection.MULTI } + ca.newsarchive.app.data.HomeSection.MULTI
+            else s.homeSections
+            s.copy(homePlace = place, homeSections = sections)
+        }
         if (dirVersion < 4) c.settings.update { s ->
             // The Space section becomes Space & Defense (added if the user had no Space section).
             val hs = s.homeSections

@@ -15,7 +15,7 @@ object HomeSection {
     const val LATEST = "LATEST"        // everything, newest first
     const val UPDATED = "UPDATED"      // recently changed articles
     const val SPACE_DEFENSE = "SPACE_DEFENSE" // space and defense/military news, by subject rather than place
-    val defaults = listOf(LOCAL, MULTI, "CA-SK", "CA", "US", "C-EU", "WORLD", SPACE_DEFENSE)
+    val defaults = listOf(LOCAL, "CA-SK", "CA", "US", "C-EU", "WORLD", SPACE_DEFENSE, MULTI)
 
     /**
      * Space Defense News is fed by these two publishers only. Picking the section by publisher rather
@@ -48,7 +48,7 @@ data class AppSettings(
      * multi-source coverage). Default 14; raise it to let a story's timeline reach further back.
      */
     val storyWindowDays: Int = 14,
-    val homePlace: String = "CA-SK:regina",
+    val homePlace: String = "CA-SK:saskatoon",
     val syncIntervalMinutes: Int = 60,
     val wifiOnly: Boolean = false,
     val revisitEnabled: Boolean = true,
@@ -63,7 +63,7 @@ data class AppSettings(
 )
 
 /** Bump when SourceDirectory changes need applying to existing installs (see Repository.applyDirectoryUpdates). */
-const val DIRECTORY_VERSION = 7
+const val DIRECTORY_VERSION = 8
 
 class SettingsStore(context: Context) {
     private val prefs: SharedPreferences = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
@@ -83,7 +83,7 @@ class SettingsStore(context: Context) {
         collapsedSections = prefs.getString("collapsedSections", "")?.split(',')?.filter { it.isNotBlank() }?.toSet() ?: emptySet(),
         feedWindowDays = prefs.getInt("feedWindowDays", 3),
         storyWindowDays = prefs.getInt("storyWindowDays", 14),
-        homePlace = prefs.getString("homePlace", "CA-SK:regina")!!,
+        homePlace = prefs.getString("homePlace", "CA-SK:saskatoon")!!,
         syncIntervalMinutes = prefs.getInt("syncIntervalMinutes", 60),
         wifiOnly = prefs.getBoolean("wifiOnly", false),
         revisitEnabled = prefs.getBoolean("revisitEnabled", true),

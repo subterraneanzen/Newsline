@@ -63,6 +63,21 @@ object Gazetteer {
 
     fun isAncestor(ancestor: String, code: String) = ancestors(code).any { it.code == ancestor }
 
+    /** [code] itself and all its ancestors, most specific first. Empty if [code] is unknown. */
+    fun lineage(code: String): List<Place> = listOfNotNull(places[code]) + ancestors(code)
+
+    /**
+     * Depth of the most specific place shared by [a] and [b]'s lineages (each place counts as its own
+     * ancestor), or -1 if they share none. Higher means the two places sit closer together: a city with
+     * itself scores deepest, two cities in one province share the province, two countries on one
+     * continent share the continent, and a place with no shared ancestor scores -1. Used to order work
+     * from a home place outward — most local first.
+     */
+    fun commonAncestorDepth(a: String, b: String): Int {
+        val bCodes = lineage(b).mapTo(HashSet()) { it.code }
+        return lineage(a).firstOrNull { it.code in bCodes }?.level?.depth ?: -1
+    }
+
     fun children(code: String?): List<Place> = places.values.filter { it.parentCode == code }.sortedBy { it.name }
     fun continents() = children(null)
 

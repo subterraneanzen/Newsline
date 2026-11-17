@@ -5,6 +5,7 @@ import ca.newsarchive.core.cluster.StorySignature
 import ca.newsarchive.core.diff.ChangeType
 import ca.newsarchive.core.diff.VersionDiff
 import ca.newsarchive.core.diff.VersionSnapshot
+import ca.newsarchive.core.geo.Gazetteer
 import ca.newsarchive.core.geo.GeoClassifier
 import ca.newsarchive.core.geo.GeoLevel
 import ca.newsarchive.core.topic.TopicClassifier
@@ -96,6 +97,22 @@ class AnalysisTest {
         assertTrue(jordan.isEmpty(), jordan.toString())
         val dc = GeoClassifier.mentions("Officials in Washington D.C. met.").map { it.first }
         assertEquals(listOf("US-DC"), dc)
+    }
+
+    @Test fun proximityOrdersLocalFirst() {
+        val home = "CA-SK:saskatoon"
+        fun d(place: String) = Gazetteer.commonAncestorDepth(place, home)
+        // Saskatoon (self) > another Saskatchewan city > the province > Canada > same continent (US) > unrelated/none.
+        assertEquals(GeoLevel.CITY.depth, d("CA-SK:saskatoon"))
+        assertEquals(GeoLevel.REGION.depth, d("CA-SK:regina"))
+        assertEquals(GeoLevel.REGION.depth, d("CA-SK"))
+        assertEquals(GeoLevel.COUNTRY.depth, d("CA"))
+        assertEquals(GeoLevel.CONTINENT.depth, d("US"))
+        assertEquals(-1, d("GB"))
+        assertEquals(-1, d(""))
+        // Sorting a mixed bag by proximity descending yields local → outward.
+        val ordered = listOf("GB", "US", "CA", "CA-SK", "CA-SK:saskatoon").sortedByDescending { d(it) }
+        assertEquals(listOf("CA-SK:saskatoon", "CA-SK", "CA", "US", "GB"), ordered)
     }
 
     @Test fun spaceDetection() {

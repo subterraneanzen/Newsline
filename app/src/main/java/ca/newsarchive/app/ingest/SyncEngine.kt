@@ -6,6 +6,7 @@ import ca.newsarchive.app.data.SourceEntity
 import ca.newsarchive.app.work.SyncWorker
 import ca.newsarchive.app.data.SyncRunEntity
 import ca.newsarchive.app.notify.Notifier
+import ca.newsarchive.core.geo.Gazetteer
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
 import kotlinx.coroutines.withContext
@@ -68,10 +69,18 @@ class SyncEngine(
         try {
             stories.invalidate()
             val all = db.sources().enabled()
+            // Collect from the home place outward — Saskatoon first, then the rest of Saskatchewan, Canada,
+            // the continent, the wider world — so the feed re-populates local-first. Staleness still decides
+            // which sources a staggered background run picks up, and breaks ties within a proximity tier.
+            val home = settings.current.homePlace
             val due = all.filter { s ->
                 (sourceIds == null || s.id in sourceIds) &&
                     (force || sourceIds != null || s.lastAttemptAt == null || start - s.lastAttemptAt >= s.intervalMinutes * 60_000L - 120_000L)
             }.sortedBy { it.lastAttemptAt ?: 0L }.let { stagger(it, all.size, trigger, force, sourceIds, start) }
+                .sortedWith(
+                    compareByDescending<SourceEntity> { Gazetteer.commonAncestorDepth(it.placeCode ?: "", home) }
+                        .thenBy { it.lastAttemptAt ?: 0L }
+                )
             val done = AtomicInteger(0)
             val newCount = AtomicInteger(0)
             val failed = AtomicInteger(0)

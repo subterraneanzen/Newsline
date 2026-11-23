@@ -84,4 +84,23 @@ class HomePlacementTest {
         assertEquals("WORLD", pub("notdefensenews.com"))
         assertEquals("WORLD", pub(null))
     }
+
+    @Test fun regionsListTheirMainPublishersFirst() {
+        val secs = listOf(
+            HomePlacement.Place("CA", "CA"), HomePlacement.Place("US", "US"), HomePlacement.Place("C-EU", "C-EU"),
+            HomePlacement.Place("C-AS", "C-AS"), HomePlacement.CatchAll("WORLD"),
+        )
+        fun c(id: Long, host: String, code: String) = Candidate(id, 1, listOf(Tag(code, 0.9, false)), host = host)
+        val r = HomePlacement.assign(secs, listOf(
+            c(1, "www.cbc.ca", "US"), c(2, "www.ctvnews.ca", "US"), c(3, "www.npr.org", "US"),
+            c(4, "www.cnn.com", "US"), c(5, "abcnews.go.com", "US"), c(6, "www.cbc.ca", "CA"),
+            c(7, "www.politico.eu", "FR"), c(8, "www.bbc.com", "DE"),
+            c(9, "www.japantimes.co.jp", "JP"), c(10, "www.scmp.com", "CN"), c(11, "www.channelnewsasia.com", "SG"),
+        ), perSection = 2)
+        // CBC and CTV stay off United States, but CBC still shows under Canada; CNN and ABC come before NPR.
+        assertEquals(listOf(4L, 5L), r["US"]); assertEquals(listOf(6L), r["CA"])
+        // Europe and Asia: chosen publishers first, others after, newest first within each group.
+        assertEquals(listOf(8L, 7L), r["C-EU"]); assertEquals(listOf(10L, 11L), r["C-AS"])
+        assertEquals(true, ca.newsarchive.core.home.RegionSources.isPrimary("GB", "www.bbc.co.uk"))
+    }
 }

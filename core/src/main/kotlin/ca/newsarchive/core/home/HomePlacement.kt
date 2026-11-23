@@ -62,16 +62,27 @@ object HomePlacement {
 
     /** [candidates] newest first; returns up to [perSection] article ids per section key, newest first. */
     fun assign(sections: List<Section>, candidates: List<Candidate>, perSection: Int = 5): Map<String, List<Long>> {
-        val out = sections.associate { it.key to ArrayList<Long>() }
+        val all = sections.associate { it.key to ArrayList<Candidate>() }
         val seen = HashSet<Long>()
         for (a in candidates) {
             if (!seen.add(a.id)) continue
             val best = bestSection(sections, a) ?: continue
-            if (a.outsideTeamSports && best is Place && best.dropOutsideTeamSports) continue
-            val list = out.getValue(best.key)
-            if (list.size < perSection) list += a.id
+            if (best is Place) {
+                if (a.outsideTeamSports && best.dropOutsideTeamSports) continue
+                // e.g. a CBC or CTV story about the United States: not shown under United States.
+                if (RegionSources.isExcluded(best.code, a.host)) continue
+            }
+            all.getValue(best.key) += a
         }
-        return out
+        val byKey = sections.associateBy { it.key }
+        return all.mapValues { (key, list) ->
+            val s = byKey.getValue(key)
+            // In a region with chosen main publishers, theirs come first (newest first); others fill the rest.
+            val ordered = if (s is Place && RegionSources.ruleFor(s.code) != null)
+                list.sortedByDescending { RegionSources.isPrimary(s.code, it.host) } // stable: keeps newest-first within each group
+            else list
+            ordered.take(perSection).map { it.id }
+        }
     }
 
     /** Added to a subject match so it outranks place sections (whose scores stay below ~110). */

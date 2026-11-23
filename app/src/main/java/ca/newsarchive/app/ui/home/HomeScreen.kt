@@ -57,6 +57,7 @@ import ca.newsarchive.app.ui.components.CollapsibleSectionHeader
 import ca.newsarchive.app.ui.components.SectionCard
 import ca.newsarchive.core.geo.Gazetteer
 import ca.newsarchive.core.home.HomePlacement
+import ca.newsarchive.core.home.RegionSources
 import ca.newsarchive.core.text.TextNormalizer
 import ca.newsarchive.core.text.UrlCanonicalizer
 import ca.newsarchive.app.AppContainer
@@ -326,7 +327,9 @@ fun SectionScreen(code: String, nav: Nav) {
     // Canada, United States and Europe pages leave out other cities' team sports stories.
     val items by remember(filter) {
         c.db.articles().observeList(ArticleQuery.build(filter)).map { list ->
-            if (code in OutsideTeamSports.filteredSections) list.filterNot { OutsideTeamSports.isOutsideTeamStory(it.title, it.summary) } else list
+            val kept = if (code in OutsideTeamSports.filteredSections) list.filterNot { OutsideTeamSports.isOutsideTeamStory(it.title, it.summary) } else list
+            // Publishers the user doesn't want for this region (CBC and CTV under United States).
+            kept.filterNot { RegionSources.isExcluded(code, UrlCanonicalizer.host(it.url)) }
         }
     }.collectAsState(null)
     Column(Modifier.fillMaxSize()) {

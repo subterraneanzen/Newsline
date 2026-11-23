@@ -86,6 +86,15 @@ private fun kotlinx.coroutines.CoroutineScope.launchStartup(c: AppContainer) = l
             }
             s.copy(homeSections = next)
         }
+        if (dirVersion < 10) c.settings.update { s ->
+            // A China section, placed right below Europe (or before World if there is no Europe section).
+            val hs = s.homeSections
+            if ("CN" in hs) s else {
+                val at = hs.indexOf("C-EU").takeIf { it >= 0 }?.plus(1)
+                    ?: hs.indexOf(ca.newsarchive.core.geo.Gazetteer.WORLD_CODE).takeIf { it >= 0 } ?: hs.size
+                s.copy(homeSections = hs.take(at) + "CN" + hs.drop(at))
+            }
+        }
         c.settings.update { it.copy(directoryVersion = ca.newsarchive.app.data.DIRECTORY_VERSION) }
     }
     c.images.trim()

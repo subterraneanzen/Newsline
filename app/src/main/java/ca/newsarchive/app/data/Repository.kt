@@ -158,6 +158,31 @@ class Repository(
                 ))
             }
         }
+        if (fromVersion < 10) {
+            // The user's main publishers for United States, Europe, China and Asia news (see RegionSources).
+            // Paywalled or hard-to-read outlets (FT, Reuters, Nikkei Asia, Caixin, Xinhua, CCTV's site, NHK World) are left out.
+            val wanted = setOf(
+                "https://www.cnn.com/sitemap/news.xml", "https://www.cnbc.com/id/100003114/device/rss/rss.html", "https://www.ms.now/feed",
+                "https://feeds.nbcnews.com/nbcnews/public/news", "https://abcnews.go.com/abcnews/topstories",
+                "https://rss.dw.com/rdf/rss-en-all", "https://www.france24.com/en/rss", "https://www.aljazeera.com/xml/rss/all.xml",
+                "https://feeds.bbci.co.uk/news/world/europe/rss.xml", "https://feeds.bbci.co.uk/news/world/asia/rss.xml",
+                "https://www.theguardian.com/world/europe-news/rss", "https://www.euronews.com/rss?format=mrss&level=theme&name=news",
+               
+                "https://www.cgtn.com/subscribe/rss/section/china.xml",
+                "https://www.scmp.com/rss/4/feed",
+                "https://www.channelnewsasia.com/rssfeeds/8395986",
+                "https://www.thejakartapost.com/sitemap_news.xml",
+                "https://timesofindia.indiatimes.com/rssfeedstopstories.cms", "https://www.bangkokpost.com/rss/data/topstories.xml",
+            )
+            for (d in SourceDirectory.all.filter { it.feedUrl in wanted }) {
+                val existing = findDuplicate(d.feedUrl)
+                if (existing == null) db.sources().insert(d.toEntity(enabled = true))
+                else if (!existing.enabled) db.sources().update(existing.copy(
+                    enabled = true, lastError = null, consecutiveFailures = 0,
+                    status = SourceStatus.UNKNOWN, statusNote = null, etag = null, lastModifiedHeader = null,
+                ))
+            }
+        }
     }
 
     private fun DirectorySource.toEntity(enabled: Boolean) = SourceEntity(

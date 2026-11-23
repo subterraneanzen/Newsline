@@ -15,7 +15,7 @@ object HomeSection {
     const val LATEST = "LATEST"        // everything, newest first
     const val UPDATED = "UPDATED"      // recently changed articles
     const val SPACE_DEFENSE = "SPACE_DEFENSE" // space and defense/military news, by subject rather than place
-    val defaults = listOf(LOCAL, "CA-SK", "CA", "US", "C-EU", "WORLD", SPACE_DEFENSE, MULTI)
+    val defaults = listOf(LOCAL, "CA-SK", "CA", "US", "C-EU", "CN", "WORLD", SPACE_DEFENSE, MULTI)
 
     /** Home opens with only the top two sections expanded; the rest start folded. */
     fun defaultCollapsed(sections: List<String>): Set<String> = sections.drop(2).toSet()
@@ -66,7 +66,7 @@ data class AppSettings(
 )
 
 /** Bump when SourceDirectory changes need applying to existing installs (see Repository.applyDirectoryUpdates). */
-const val DIRECTORY_VERSION = 9
+const val DIRECTORY_VERSION = 10
 
 class SettingsStore(context: Context) {
     private val prefs: SharedPreferences = context.getSharedPreferences("settings", Context.MODE_PRIVATE)

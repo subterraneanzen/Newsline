@@ -25,8 +25,11 @@ object SourceDirectory {
     private const val DATA = """
 International|BBC News – World|https://feeds.bbci.co.uk/news/world/rss.xml|https://www.bbc.com/news/world|GB|en|N|Y
 International|BBC News – Top Stories|https://feeds.bbci.co.uk/news/rss.xml|https://www.bbc.com/news|GB|en|N|N
+International|BBC News – Europe|https://feeds.bbci.co.uk/news/world/europe/rss.xml|https://www.bbc.com/news/world/europe|GB|en|N|N
+International|BBC News – Asia|https://feeds.bbci.co.uk/news/world/asia/rss.xml|https://www.bbc.com/news/world/asia|GB|en|N|N
 International|Al Jazeera English|https://www.aljazeera.com/xml/rss/all.xml|https://www.aljazeera.com|QA|en|N|Y
 International|The Guardian – World|https://www.theguardian.com/world/rss|https://www.theguardian.com/world|GB|en|N|Y
+International|The Guardian – Europe|https://www.theguardian.com/world/europe-news/rss|https://www.theguardian.com/world/europe-news|GB|en|N|N
 International|Deutsche Welle (English)|https://rss.dw.com/rdf/rss-en-all|https://www.dw.com/en|DE|en|N|Y
 International|France 24 (English)|https://www.france24.com/en/rss|https://www.france24.com/en|FR|en|N|Y
 International|RFI (English)|https://www.rfi.fr/en/rss|https://www.rfi.fr/en|FR|en|N|N
@@ -50,7 +53,11 @@ Canada – National|The Canadian Press|https://www.thecanadianpressnews.ca/|http
 Canada – National|CTV News|https://www.ctvnews.ca/arc/outboundfeeds/rss/?outputType=xml|https://www.ctvnews.ca|CA|en|N|Y
 United States|CNBC – Top News|https://www.cnbc.com/id/100003114/device/rss/rss.html|https://www.cnbc.com|US|en|N|Y
 United States|MS NOW|https://www.ms.now/feed|https://www.ms.now|US|en|N|Y
+United States|CNN|https://www.cnn.com/sitemap/news.xml|https://www.cnn.com|US|en|N|N|SITEMAP
 Asia|CGTN – World|https://www.cgtn.com/subscribe/rss/section/world.xml|https://www.cgtn.com|CN|en|N|Y
+Asia|CGTN – China|https://www.cgtn.com/subscribe/rss/section/china.xml|https://www.cgtn.com|CN|en|N|N
+Asia|South China Morning Post – China|https://www.scmp.com/rss/4/feed|https://www.scmp.com/news/china|CN|en|N|N
+Asia|The Jakarta Post|https://www.thejakartapost.com/sitemap_news.xml|https://www.thejakartapost.com|ID|en|N|N|SITEMAP
 Canada – National|The Hub|https://thehub.ca/feed/|https://thehub.ca|CA|en|N|N
 Canada – National|The Tyee|https://thetyee.ca/rss2.xml|https://thetyee.ca|CA-BC|en|N|N
 Canada – National|The Narwhal|https://thenarwhal.ca/feed/|https://thenarwhal.ca|CA|en|N|N

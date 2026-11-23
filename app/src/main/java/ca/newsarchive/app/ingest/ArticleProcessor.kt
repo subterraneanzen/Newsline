@@ -22,6 +22,7 @@ import ca.newsarchive.core.model.BlockType
 import ca.newsarchive.core.model.ExtractedArticle
 import ca.newsarchive.core.model.ExtractionStatus
 import ca.newsarchive.core.model.FeedItem
+import ca.newsarchive.core.model.texts
 import ca.newsarchive.core.net.FetchResult
 import ca.newsarchive.core.net.HttpFetcher
 import ca.newsarchive.core.text.TextNormalizer
@@ -83,10 +84,10 @@ class ArticleProcessor(
         val revisit = settings.current.revisitEnabled
 
         // A city or province in the article's own address (CBC, CTV, Global, CKOM) outranks place names in the text.
-        val geo = UrlGeo.apply(GeoClassifier.classify(title, body.blocks.map { it.text }, item.categories, source.placeCode.takeIf { source.isLocal }), link)
-        val topics = TopicClassifier.classify(title, body.blocks.map { it.text }, item.categories + listOfNotNull(extracted?.section))
+        val geo = UrlGeo.apply(GeoClassifier.classify(title, body.blocks.texts(), item.categories, source.placeCode.takeIf { source.isLocal }), link)
+        val topics = TopicClassifier.classify(title, body.blocks.texts(), item.categories + listOfNotNull(extracted?.section))
         val sortTime = published?.coerceAtMost(now + 3_600_000) ?: now
-        val lead = (item.summary ?: "") + " " + body.blocks.take(3).joinToString(" ") { it.text }
+        val lead = (item.summary ?: "") + " " + body.blocks.texts().take(3).joinToString(" ")
         val sig = StoryClusterer.signature(title, lead, geo.filter { it.level.depth >= 2 }.map { it.code }.toSet(), sortTime)
 
         val article = ArticleEntity(
@@ -135,9 +136,9 @@ class ArticleProcessor(
     }
 
     private fun chooseBody(item: FeedItem, extracted: ExtractedArticle?, fetchNote: String?): Body {
-        val feedBlocks = item.contentHtml?.let { ArticleExtractor.blocksFromHtml(it) }?.takeIf { it.isNotEmpty() }
+        val feedBlocks = item.contentHtml?.let { ArticleExtractor.blocksFromHtml(it, item.link ?: "") }?.takeIf { it.isNotEmpty() }
             ?: item.summary?.let { listOf(Block(BlockType.PARAGRAPH, it)) } ?: emptyList()
-        val feedWords = feedBlocks.sumOf { b -> b.text.split(' ').size }
+        val feedWords = feedBlocks.texts().sumOf { t -> t.split(' ').size }
         if (extracted != null && extracted.status != ExtractionStatus.FAILED) {
             val ew = extracted.wordCount
             if (extracted.status == ExtractionStatus.PAYWALLED || ew >= feedWords * 0.8) {
@@ -202,8 +203,14 @@ class ArticleProcessor(
         }
         val title = TextNormalizer.clean(ex.title ?: a.title).ifBlank { a.title }
         val old = VersionSnapshot(prev.title, prev.author, prev.publisherModifiedAt, prev.paragraphs())
-        val new = VersionSnapshot(title, ex.author ?: prev.author, ex.modifiedAt, ex.blocks.map { it.text })
+        val new = VersionSnapshot(title, ex.author ?: prev.author, ex.modifiedAt, ex.blocks.texts())
         if (!VersionDiff.isMeaningfulChange(old, new)) {
+            // Same words, better layout (photos in place, headings, numbering, captions): refresh the
+            // stored copy in place. Only when the text is identical, so the archived record never changes.
+            if (new.paragraphs == old.paragraphs && new.title == old.title) {
+                val encoded = ArticleVersionEntity.encodeBlocks(ex.blocks)
+                if (encoded != prev.body) versions.update(prev.copy(body = encoded, images = ex.images.joinToString("\n") { it.url }.ifBlank { prev.images }))
+            }
             articles.update(back.copy(publisherModifiedAt = ex.modifiedAt ?: a.publisherModifiedAt, nextCheckAt = next(a, now, false)))
             return RevisitOutcome.UNCHANGED
         }
@@ -225,7 +232,7 @@ class ArticleProcessor(
                     wordCount = ex.wordCount, nextCheckAt = next(a, now, true),
                 ),
             )
-            val paragraphs = ex.blocks.map { it.text }
+            val paragraphs = ex.blocks.texts()
             if (!a.geoManual) {
                 db.tags().clearAutoGeo(a.id)
                 val g = UrlGeo.apply(GeoClassifier.classify(title, paragraphs, emptyList(), source?.takeIf { it.isLocal }?.placeCode), a.url)
@@ -254,7 +261,7 @@ class ArticleProcessor(
         fun ftsRow(id: Long, title: String, blocks: List<Block>, publisher: String, author: String?, geo: List<String>, topics: List<String>, summary: String?) =
             ArticleFts(
                 rowId = id, title = title,
-                body = (listOfNotNull(summary) + blocks.map { it.text }).joinToString("\n"),
+                body = (listOfNotNull(summary) + blocks.texts()).joinToString("\n"),
                 publisher = publisher, author = author ?: "",
                 places = geo.mapNotNull { Gazetteer.get(it)?.name ?: if (it == Gazetteer.SPACE_CODE) "Space" else null }.joinToString(" "),
                 topics = topics.joinToString(" "),

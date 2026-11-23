@@ -7,6 +7,8 @@ import android.util.LruCache
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -72,5 +74,28 @@ fun RemoteImage(url: String?, modifier: Modifier = Modifier, contentDescription:
         Image(b.asImageBitmap(), contentDescription, modifier, contentScale = ContentScale.Crop)
     } else {
         Box(modifier.background(MaterialTheme.colorScheme.surfaceVariant))
+    }
+}
+
+/**
+ * A photo shown the way the article shows it: full width at its own proportions, never cropped.
+ * Until it loads, a placeholder holds the publisher's size ([width] x [height]) or 3:2. If it can't be
+ * loaded, nothing is shown, so a dead image address leaves no empty box in the text.
+ */
+@Composable
+fun ArticlePhoto(url: String, width: Int, height: Int, modifier: Modifier = Modifier, contentDescription: String? = null) {
+    val loader = LocalContainer.current.images
+    var bmp by remember(url) { mutableStateOf<Bitmap?>(null) }
+    var failed by remember(url) { mutableStateOf(false) }
+    LaunchedEffect(url) { val b = loader.load(url); bmp = b; failed = b == null }
+    if (failed) return
+    val b = bmp
+    // Very tall graphics are kept within twice the screen width so they don't swallow the page.
+    fun ratio(w: Int, h: Int) = (w.toFloat() / h).coerceAtLeast(0.5f)
+    if (b != null) {
+        Image(b.asImageBitmap(), contentDescription, modifier.fillMaxWidth().aspectRatio(ratio(b.width, b.height)), contentScale = ContentScale.Fit)
+    } else {
+        val r = if (width > 0 && height > 0) ratio(width, height) else 1.5f
+        Box(modifier.fillMaxWidth().aspectRatio(r).background(MaterialTheme.colorScheme.surfaceVariant))
     }
 }

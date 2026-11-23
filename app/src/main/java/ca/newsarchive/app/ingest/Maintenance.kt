@@ -80,7 +80,7 @@ class Maintenance(private val context: Context, private val db: AppDatabase, pri
             val space = db.tags().geoFor(id).firstOrNull { it.code == ca.newsarchive.core.geo.Gazetteer.SPACE_CODE && !it.manual }
             if (topics.isEmpty() && space == null) continue
             val v = db.versions().latest(id) ?: continue
-            val paragraphs = ca.newsarchive.app.data.ArticleVersionEntity.decodeBlocks(v.body).map { it.text }
+            val paragraphs = ca.newsarchive.app.data.ArticleVersionEntity.decodeBlocks(v.body).filter { !it.isImage }.map { it.text }
             val now = ca.newsarchive.core.topic.TopicClassifier.classify(v.title, paragraphs).associateBy { it.topic }
             for (t in topics) {
                 val fresh = now[t.topic]

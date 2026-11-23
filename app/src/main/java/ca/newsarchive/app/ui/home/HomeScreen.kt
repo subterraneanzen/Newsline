@@ -1,5 +1,6 @@
 package ca.newsarchive.app.ui.home
 
+import ca.newsarchive.core.filter.OutsideTeamSports
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.FilledTonalButton
@@ -208,7 +209,7 @@ private fun homePlacement(c: AppContainer, sections: List<String>, homePlace: St
             HomeSection.LATEST, Gazetteer.WORLD_CODE -> HomePlacement.CatchAll(code)
             HomeSection.UPDATED -> HomePlacement.Updated(code)
             HomeSection.SPACE_DEFENSE -> HomePlacement.Publisher(code, HomeSection.spaceDefenseHosts.toSet())
-            else -> HomePlacement.Place(code, code)
+            else -> HomePlacement.Place(code, code, dropOutsideTeamSports = code in OutsideTeamSports.filteredSections)
         }
         section to sectionFilter(code, homePlace, from, 40)
     }
@@ -225,6 +226,7 @@ private fun homePlacement(c: AppContainer, sections: List<String>, homePlace: St
                 a.id, a.versionCount, tags[a.id].orEmpty().map { HomePlacement.Tag(it.code, it.confidence, it.inferred) },
                 topics[a.id].orEmpty().map { HomePlacement.TopicScore(it.topic, it.confidence) }, categories[a.sourceId],
                 UrlCanonicalizer.host(a.url),
+                outsideTeamSports = OutsideTeamSports.isOutsideTeamStory(a.title, a.summary),
             )
         }
         val byId = pool.associateBy { it.id }
@@ -321,7 +323,12 @@ fun SectionScreen(code: String, nav: Nav) {
     var days by rememberSaveable { mutableIntStateOf(7) }
     var limit by remember { mutableIntStateOf(60) }
     val filter = remember(code, days, limit) { sectionFilter(code, homePlace, windowStart(days), limit) }
-    val items by remember(filter) { c.db.articles().observeList(ArticleQuery.build(filter)) }.collectAsState(null)
+    // Canada, United States and Europe pages leave out other cities' team sports stories.
+    val items by remember(filter) {
+        c.db.articles().observeList(ArticleQuery.build(filter)).map { list ->
+            if (code in OutsideTeamSports.filteredSections) list.filterNot { OutsideTeamSports.isOutsideTeamStory(it.title, it.summary) } else list
+        }
+    }.collectAsState(null)
     Column(Modifier.fillMaxSize()) {
         DetailBar(sectionTitle(code, homePlace), nav)
         Row(

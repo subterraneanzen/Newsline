@@ -13,8 +13,11 @@ import ca.newsarchive.core.geo.Gazetteer
  */
 object HomePlacement {
     sealed interface Section { val key: String }
-    /** Shows articles tagged with [code] or any place inside it. */
-    data class Place(override val key: String, val code: String) : Section
+    /**
+     * Shows articles tagged with [code] or any place inside it. With [dropOutsideTeamSports], an article
+     * flagged [Candidate.outsideTeamSports] that would land here is left off the home page altogether.
+     */
+    data class Place(override val key: String, val code: String, val dropOutsideTeamSports: Boolean = false) : Section
     /**
      * A subject section (e.g. Space & Defense): shows articles whose topic is one of [topics] (at
      * [minConfidence] or more), that carry one of [placeCodes] (the Space tag), or that come from a
@@ -47,6 +50,8 @@ object HomePlacement {
         val sourceCategory: String? = null,
         /** Host the article was published on, lowercase and without a leading "www." */
         val host: String? = null,
+        /** A story about an outside-Saskatchewan city's own team (see OutsideTeamSports). */
+        val outsideTeamSports: Boolean = false,
     )
 
     /** True when [host] is one of [hosts] or a subdomain of one. */
@@ -62,6 +67,7 @@ object HomePlacement {
         for (a in candidates) {
             if (!seen.add(a.id)) continue
             val best = bestSection(sections, a) ?: continue
+            if (a.outsideTeamSports && best is Place && best.dropOutsideTeamSports) continue
             val list = out.getValue(best.key)
             if (list.size < perSection) list += a.id
         }

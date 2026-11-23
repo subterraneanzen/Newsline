@@ -248,7 +248,7 @@ fun ReaderScreen(articleId: Long, nav: Nav) {
                             Text(body, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 0.dp, bottom = 8.dp))
                         } else Text(body, fontFamily = Serif, fontSize = bodySize, lineHeight = lineHeight,
-                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 7.dp))
+                            modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 12.dp))
                         BlockType.IMAGE -> Unit
                     }
                 }

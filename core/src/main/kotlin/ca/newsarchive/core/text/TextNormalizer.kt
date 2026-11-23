@@ -35,8 +35,11 @@ object TextNormalizer {
         sha256(comparable(title ?: "") + "\n" + blocks.filter { it.text.isNotBlank() }
             .joinToString("\n") { comparable(it.text) })
 
-    fun bodyHash(paragraphs: List<String>): String =
-        sha256(paragraphs.filter { it.isNotBlank() }.joinToString("\n") { comparable(it) })
+    /** Hash of the body's words only: re-splitting the same text into different paragraphs is not a change. */
+    fun bodyHash(paragraphs: List<String>): String = sha256(bodyText(paragraphs))
+
+    fun bodyText(paragraphs: List<String>): String =
+        paragraphs.filter { it.isNotBlank() }.joinToString(" ") { comparable(it) }
 }
 
 /** Removes tracking parameters and fragments so the same article is recognised under different links. */

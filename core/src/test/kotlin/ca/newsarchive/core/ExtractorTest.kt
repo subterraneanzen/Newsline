@@ -11,6 +11,7 @@ import ca.newsarchive.core.model.texts
 import ca.newsarchive.core.model.ExtractionStatus
 import ca.newsarchive.core.telegram.TelegramPreview
 import ca.newsarchive.core.text.Dates
+import ca.newsarchive.core.text.TextNormalizer
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -163,5 +164,27 @@ class ExtractorTest {
         assertEquals("testchan", TelegramPreview.normalizeUsername("@testchan"))
         assertNull(TelegramPreview.normalizeUsername("https://t.me/+AbCdEf"))
         assertFalse(TelegramPreview.parse("<html><body><div class=tgme_page>Private</div></body></html>", "x").previewAvailable)
+    }
+
+    @Test fun splitsLooseTextIntoParagraphs() {
+        val s1 = "The city council voted on Tuesday to approve the new transit plan for the downtown core area."
+        val s2 = "Residents had raised concerns about <b>parking</b> and noise during several long public meetings."
+        val s3 = "Construction is expected to begin next spring and last about two years, officials said today."
+        val s4 = "Opponents say they will keep pressing the council to reconsider parts of the plan before then."
+        val html = """<html><body><article><div class="story">$s1<br><br>$s2<br>
+            <br>$s3<p>$s4<br><br>$s1</p></div></article></body></html>"""
+        val texts = ArticleExtractor.extract(html, "https://example.com/news/a").blocks.texts()
+        assertEquals(5, texts.size, texts.toString())
+        assertTrue(texts[1].startsWith("Residents had raised concerns about parking"))
+        assertTrue(texts[3].startsWith("Opponents"))
+    }
+
+    @Test fun breaksUpLongJsonLdText() {
+        val sentence = "This is a sentence in a story that came with no paragraph breaks at all from the publisher. "
+        val parts = ArticleExtractor.splitLongParagraph(sentence.repeat(20).trim())
+        assertTrue(parts.size >= 4, parts.size.toString())
+        assertEquals(sentence.repeat(20).trim(), parts.joinToString(" "))
+        assertEquals(1, ArticleExtractor.splitLongParagraph("Short one. Two.").size)
+        assertEquals(TextNormalizer.bodyHash(listOf("A b. C d.")), TextNormalizer.bodyHash(listOf("A b.", "C d.")))
     }
 }

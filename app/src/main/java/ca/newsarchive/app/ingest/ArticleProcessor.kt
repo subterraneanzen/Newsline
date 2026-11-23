@@ -206,8 +206,9 @@ class ArticleProcessor(
         val new = VersionSnapshot(title, ex.author ?: prev.author, ex.modifiedAt, ex.blocks.texts())
         if (!VersionDiff.isMeaningfulChange(old, new)) {
             // Same words, better layout (photos in place, headings, numbering, captions): refresh the
-            // stored copy in place. Only when the text is identical, so the archived record never changes.
-            if (new.paragraphs == old.paragraphs && new.title == old.title) {
+            // stored copy in place. Only when the words are identical (paragraph breaks may differ), so the
+            // archived record never changes.
+            if (TextNormalizer.bodyText(new.paragraphs) == TextNormalizer.bodyText(old.paragraphs) && new.title == old.title) {
                 val encoded = ArticleVersionEntity.encodeBlocks(ex.blocks)
                 if (encoded != prev.body) versions.update(prev.copy(body = encoded, images = ex.images.joinToString("\n") { it.url }.ifBlank { prev.images }))
             }

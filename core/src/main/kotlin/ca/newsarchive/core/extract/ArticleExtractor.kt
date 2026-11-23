@@ -14,6 +14,7 @@ import ca.newsarchive.core.text.TextNormalizer
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
+import org.jsoup.nodes.Node
 import org.jsoup.nodes.TextNode
 
 /**
@@ -99,7 +100,7 @@ object ArticleExtractor {
         val ldBody = ld?.string("articleBody")
         if (accessibleForFree != false && ldBody != null && ldBody.length > finalBlocks.sumOf { it.text.length } * 1.3) {
             val paras = ldBody.split(Regex("\\n\\s*\\n|\\n")).map { TextNormalizer.clean(it) }
-                .filter { it.isNotEmpty() }.map { Block(BlockType.PARAGRAPH, it) }
+                .filter { it.isNotEmpty() }.flatMap(::splitLongParagraph).map { Block(BlockType.PARAGRAPH, it) }
             finalBlocks = placePhotos(paras, blocks)
         }
         // Drop a leading block that just repeats the headline (photos before it are kept).
@@ -143,6 +144,7 @@ object ArticleExtractor {
     fun blocksFromHtml(html: String, baseUrl: String = ""): List<Block> {
         val doc = Jsoup.parseBodyFragment(html, baseUrl)
         clean(doc)
+        paragraphize(doc.body())
         val out = collectBlocks(doc.body())
         if (out.any { !it.isImage }) return out
         val t = TextNormalizer.clean(doc.text())
@@ -175,6 +177,7 @@ object ArticleExtractor {
         clean(doc)
         val explicit = doc.select(BODY_SELECTORS).firstOrNull()?.takeIf { textLen(it) > 300 }
         val candidate = explicit ?: bestCandidate(doc) ?: doc.body() ?: return emptyList<Block>() to emptyList()
+        paragraphize(candidate)
         val blocks = collectBlocks(candidate)
         val images = candidate.select("img").mapNotNull { img ->
             val src = listOf("data-src", "data-original", "data-lazy-src", "src").map { img.absUrl(it) }.firstOrNull { it.startsWith("http") }
@@ -370,6 +373,84 @@ object ArticleExtractor {
             prev?.remove()
             imgs.reversed().forEach { ns.after(it.clone()) }
         }
+    }
+
+    private val inlineTags = setOf("a", "b", "strong", "i", "em", "u", "span", "small", "sup", "sub", "mark", "abbr",
+        "cite", "code", "time", "s", "q", "font", "br", "del", "ins", "dfn", "kbd", "var", "bdi", "bdo", "wbr")
+
+    /**
+     * Gives loose article text real paragraphs: a <p> broken up with double <br> becomes several
+     * paragraphs, and text sitting straight inside a <div> (no <p> at all) is wrapped into paragraphs,
+     * split at double <br> and at block elements. Otherwise such text arrives as one wall of words.
+     */
+    private fun paragraphize(root: Element) {
+        fun isBr(n: Node) = n is Element && n.tagName() == "br"
+        fun isBlank(n: Node) = n is TextNode && n.isBlank
+        // Runs of child nodes separated by two or more <br> (whitespace between them ignored).
+        fun runsOf(nodes: List<Node>, stopAtBlocks: Boolean): List<List<Node>> {
+            val runs = mutableListOf<MutableList<Node>>(); var cur = mutableListOf<Node>()
+            var i = 0
+            while (i < nodes.size) {
+                val n = nodes[i]
+                if (stopAtBlocks && n is Element && n.tagName() !in inlineTags) {
+                    runs += cur; runs += mutableListOf(n); cur = mutableListOf(); i++; continue
+                }
+                if (isBr(n)) {
+                    var j = i + 1; var brs = 1
+                    while (j < nodes.size && (isBr(nodes[j]) || isBlank(nodes[j]))) { if (isBr(nodes[j])) brs++; j++ }
+                    if (brs >= 2) { runs += cur; cur = mutableListOf(); i = j; continue }
+                }
+                cur += n; i++
+            }
+            runs += cur
+            return runs.filter { r -> r.any { !isBlank(it) && !isBr(it) } }
+        }
+        fun hasText(run: List<Node>) = run.any { (it is TextNode && !it.isBlank) || (it is Element && it.tagName() in inlineTags && it.text().isNotBlank()) }
+
+        // 1. <p> split by double breaks.
+        for (p in root.select("p").toList()) {
+            val kids = p.childNodes().toList()
+            if (kids.count(::isBr) < 2) continue
+            val runs = runsOf(kids, stopAtBlocks = false)
+            if (runs.size < 2) continue
+            for (run in runs) {
+                val np = Element("p"); p.before(np)
+                run.forEach { np.appendChild(it) }
+            }
+            p.remove()
+        }
+        // 2. Bare text directly inside containers.
+        val containers = (listOf(root) + root.select("div, section, article, main, td, body")).distinct()
+        for (c in containers) {
+            if (c.tagName() in inlineTags || c.tagName() == "p") continue
+            val kids = c.childNodes().toList()
+            val bare = kids.filterIsInstance<TextNode>().sumOf { it.text().trim().length }
+            if (bare < 40) continue
+            for (run in runsOf(kids, stopAtBlocks = true)) {
+                if (run.size == 1 && run[0] is Element && (run[0] as Element).tagName() !in inlineTags) continue
+                if (!hasText(run)) continue
+                val np = Element("p"); run.first().before(np)
+                run.forEach { np.appendChild(it) }
+            }
+        }
+    }
+
+    /**
+     * JSON-LD article text sometimes comes with no line breaks at all. Break a very long run into
+     * paragraphs of a few sentences so it doesn't read as one wall of text. Words are untouched.
+     */
+    internal fun splitLongParagraph(text: String): List<String> {
+        if (text.length <= 900) return listOf(text)
+        val sentences = Regex("(?<=[.!?][\"'”’)]?)\\s+(?=[\"“‘(]?[A-Z0-9])").split(text).filter { it.isNotBlank() }
+        if (sentences.size < 2) return listOf(text)
+        val out = mutableListOf<String>(); val cur = StringBuilder()
+        for (s in sentences) {
+            if (cur.isNotEmpty() && cur.length + s.length > 450) { out += cur.toString(); cur.clear() }
+            if (cur.isNotEmpty()) cur.append(' ')
+            cur.append(s)
+        }
+        if (cur.isNotEmpty()) out += cur.toString()
+        return out
     }
 
     private fun textWithBreaks(el: Element): String {

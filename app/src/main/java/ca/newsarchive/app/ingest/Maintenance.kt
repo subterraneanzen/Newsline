@@ -80,7 +80,7 @@ class Maintenance(private val context: Context, private val db: AppDatabase, pri
             val space = db.tags().geoFor(id).firstOrNull { it.code == ca.newsarchive.core.geo.Gazetteer.SPACE_CODE && !it.manual }
             if (topics.isEmpty() && space == null) continue
             val v = db.versions().latest(id) ?: continue
-            val paragraphs = ca.newsarchive.app.data.ArticleVersionEntity.decodeBlocks(v.body).map { it.text }
+            val paragraphs = ca.newsarchive.app.data.ArticleVersionEntity.decodeBlocks(v.body).filter { !it.isImage }.map { it.text }
             val now = ca.newsarchive.core.topic.TopicClassifier.classify(v.title, paragraphs).associateBy { it.topic }
             for (t in topics) {
                 val fresh = now[t.topic]
@@ -88,6 +88,21 @@ class Maintenance(private val context: Context, private val db: AppDatabase, pri
                 else db.tags().insertTopics(listOf(t.copy(confidence = fresh.confidence)))
             }
             if (space != null && ca.newsarchive.core.geo.GeoClassifier.spaceScore(v.title, paragraphs) < 3.0) db.tags().deleteGeo(id, space.code)
+        }
+    }
+
+    /**
+     * Tags recent articles whose web address files them under a city or province (see UrlGeo), so
+     * CBC / CTV / Global / CKOM local stories already in the archive move to their place's home section.
+     */
+    suspend fun applyUrlPlaces(days: Int = 30) {
+        for (id in db.articles().idsSince(System.currentTimeMillis() - days * 86_400_000L)) {
+            val a = db.articles().get(id) ?: continue
+            if (a.geoManual) continue
+            val code = ca.newsarchive.core.geo.UrlGeo.placeFor(a.url) ?: continue
+            db.tags().insertGeo(ca.newsarchive.core.geo.Gazetteer.lineage(code).map {
+                ca.newsarchive.app.data.GeoTagEntity(id, it.code, it.level.name, 1.0, inferred = false)
+            })
         }
     }
 

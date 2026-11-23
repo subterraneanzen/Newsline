@@ -156,6 +156,7 @@ interface VersionDao {
     @Query("SELECT * FROM article_versions WHERE articleId = :articleId ORDER BY versionNo DESC LIMIT 1") suspend fun latest(articleId: Long): ArticleVersionEntity?
     @Query("SELECT * FROM article_versions WHERE articleId = :articleId ORDER BY versionNo DESC LIMIT 1") fun observeLatest(articleId: Long): Flow<ArticleVersionEntity?>
     @Insert(onConflict = OnConflictStrategy.ABORT) suspend fun insert(v: ArticleVersionEntity): Long
+    @Update suspend fun update(v: ArticleVersionEntity)
     @Query("SELECT COUNT(*) FROM article_versions") suspend fun count(): Int
     @Query("SELECT COALESCE(SUM(LENGTH(body)), 0) FROM article_versions") suspend fun totalBodyChars(): Long
     @Query("DELETE FROM article_versions WHERE articleId IN (:ids)") suspend fun deleteFor(ids: List<Long>)

@@ -65,6 +65,7 @@ Saskatchewan|Saskatoon StarPhoenix|https://thestarphoenix.com/news-sitemap.xml|h
 Saskatchewan|Global News Regina|https://globalnews.ca/regina/feed/|https://globalnews.ca/regina|CA-SK:regina|en|Y|N
 Saskatchewan|Global News Saskatoon|https://globalnews.ca/saskatoon/feed/|https://globalnews.ca/saskatoon|CA-SK:saskatoon|en|Y|N
 Saskatchewan|SASKTODAY.ca|https://www.sasktoday.ca/rss|https://www.sasktoday.ca|CA-SK|en|Y|N
+Saskatchewan|650 CKOM (Saskatoon)|https://www.ckom.com/feed/|https://www.ckom.com|CA-SK:saskatoon|en|Y|N
 Saskatchewan|paNOW (Prince Albert)|https://panow.com/feed/|https://panow.com|CA-SK:prince-albert|en|Y|Y
 Canada – Provincial|CBC Manitoba|https://www.cbc.ca/webfeed/rss/rss-canada-manitoba|https://www.cbc.ca/news/canada/manitoba|CA-MB|en|Y|N
 Canada – Provincial|CBC Calgary|https://www.cbc.ca/webfeed/rss/rss-canada-calgary|https://www.cbc.ca/news/canada/calgary|CA-AB:calgary|en|Y|N

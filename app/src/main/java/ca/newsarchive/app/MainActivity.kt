@@ -70,6 +70,12 @@ private fun kotlinx.coroutines.CoroutineScope.launchStartup(c: AppContainer) = l
             else s.homeSections
             s.copy(homePlace = place, homeSections = sections)
         }
+        if (dirVersion < 9) {
+            // Home opens with only the top two sections expanded; everything below starts folded.
+            c.settings.update { s -> s.copy(collapsedSections = ca.newsarchive.app.data.HomeSection.defaultCollapsed(s.homeSections)) }
+            // Move CBC / CTV / Global / CKOM local stories already archived into their city's section.
+            runCatching { c.maintenance.applyUrlPlaces() }
+        }
         if (dirVersion < 4) c.settings.update { s ->
             // The Space section becomes Space & Defense (added if the user had no Space section).
             val hs = s.homeSections

@@ -1,5 +1,6 @@
 package ca.newsarchive.app.ui.home
 
+import ca.newsarchive.core.filter.OutsideTeamSports
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.FilledTonalButton
@@ -74,6 +75,8 @@ private object HomeMemory {
     var total = -1
     var placed: Map<String, List<ArticleListItem>>? = null
     var stories: List<StoryListItem>? = null
+    /** Finish time of the last collection the page has already taken in. */
+    var lastSync: Long? = null
 }
 
 fun sectionTitle(code: String, homePlace: String): String = when (code) {
@@ -99,7 +102,8 @@ fun HomeScreen(nav: Nav) {
     }
     val from = remember(settings.feedWindowDays) { windowStart(settings.feedWindowDays) }
     val placedFlow = remember(settings.homeSections, settings.homePlace, from) { homePlacement(c, settings.homeSections, settings.homePlace, from) }
-    // New arrivals wait behind a "Show new" button so the page doesn't reshuffle while it's being read.
+    // New arrivals are shown when a collection finishes; anything arriving in between waits behind a
+    // "Show new" button so the page doesn't reshuffle mid-read.
     val live by placedFlow.collectAsState(HomeMemory.placed)
     var shown by remember { mutableStateOf(HomeMemory.placed) }
     val shownIds = remember(shown) { shown?.values?.flatten()?.map { it.id }?.toSet() }
@@ -107,12 +111,21 @@ fun HomeScreen(nav: Nav) {
     // Only articles collected after the ones on screen count as new (not older ones sliding into a section).
     val fresh = if (shownIds == null) 0 else live?.values?.flatten()?.count { it.id !in shownIds && it.discoveredAt > newestShown } ?: 0
     LaunchedEffect(live, shownIds) { if (shown == null || fresh == 0 || shown?.keys != live?.keys) shown = live }
+    val lastSync by remember { c.db.misc().observeLastSync() }.collectAsState(HomeMemory.lastSync)
+    // Set when a collection finishes, so the section lists catch up even if they recompute a moment later.
+    var revealNext by remember { mutableStateOf(false) }
+    LaunchedEffect(lastSync) {
+        val t = lastSync ?: return@LaunchedEffect
+        val prev = HomeMemory.lastSync
+        HomeMemory.lastSync = t
+        if (prev != null && t > prev) { shown = live; revealNext = true }
+    }
+    LaunchedEffect(live) { if (revealNext) { shown = live; revealNext = false } }
     val liveById = remember(live) { live?.values?.flatten()?.associateBy { it.id }.orEmpty() }
     // Keep read marks etc. current for the articles already on screen.
     val placed = shown?.mapValues { (_, l) -> l.map { liveById[it.id] ?: it } }
     shown?.let { HomeMemory.placed = it }
     val scope = rememberCoroutineScope()
-    val lastSync by remember { c.db.misc().observeLastSync() }.collectAsState(null)
 
     if (total == 0) {
         EmptyState(
@@ -196,7 +209,7 @@ private fun homePlacement(c: AppContainer, sections: List<String>, homePlace: St
             HomeSection.LATEST, Gazetteer.WORLD_CODE -> HomePlacement.CatchAll(code)
             HomeSection.UPDATED -> HomePlacement.Updated(code)
             HomeSection.SPACE_DEFENSE -> HomePlacement.Publisher(code, HomeSection.spaceDefenseHosts.toSet())
-            else -> HomePlacement.Place(code, code)
+            else -> HomePlacement.Place(code, code, dropOutsideTeamSports = code in OutsideTeamSports.filteredSections)
         }
         section to sectionFilter(code, homePlace, from, 40)
     }
@@ -213,6 +226,7 @@ private fun homePlacement(c: AppContainer, sections: List<String>, homePlace: St
                 a.id, a.versionCount, tags[a.id].orEmpty().map { HomePlacement.Tag(it.code, it.confidence, it.inferred) },
                 topics[a.id].orEmpty().map { HomePlacement.TopicScore(it.topic, it.confidence) }, categories[a.sourceId],
                 UrlCanonicalizer.host(a.url),
+                outsideTeamSports = OutsideTeamSports.isOutsideTeamStory(a.title, a.summary),
             )
         }
         val byId = pool.associateBy { it.id }
@@ -309,7 +323,12 @@ fun SectionScreen(code: String, nav: Nav) {
     var days by rememberSaveable { mutableIntStateOf(7) }
     var limit by remember { mutableIntStateOf(60) }
     val filter = remember(code, days, limit) { sectionFilter(code, homePlace, windowStart(days), limit) }
-    val items by remember(filter) { c.db.articles().observeList(ArticleQuery.build(filter)) }.collectAsState(null)
+    // Canada, United States and Europe pages leave out other cities' team sports stories.
+    val items by remember(filter) {
+        c.db.articles().observeList(ArticleQuery.build(filter)).map { list ->
+            if (code in OutsideTeamSports.filteredSections) list.filterNot { OutsideTeamSports.isOutsideTeamStory(it.title, it.summary) } else list
+        }
+    }.collectAsState(null)
     Column(Modifier.fillMaxSize()) {
         DetailBar(sectionTitle(code, homePlace), nav)
         Row(

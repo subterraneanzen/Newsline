@@ -17,6 +17,9 @@ object HomeSection {
     const val SPACE_DEFENSE = "SPACE_DEFENSE" // space and defense/military news, by subject rather than place
     val defaults = listOf(LOCAL, "CA-SK", "CA", "US", "C-EU", "WORLD", SPACE_DEFENSE, MULTI)
 
+    /** Home opens with only the top two sections expanded; the rest start folded. */
+    fun defaultCollapsed(sections: List<String>): Set<String> = sections.drop(2).toSet()
+
     /**
      * Space Defense News is fed by these two publishers only. Picking the section by publisher rather
      * than by subject keeps world and war stories out of it without any keyword guessing.
@@ -36,8 +39,8 @@ data class AppSettings(
     val lineSpacing: Float = 1.5f,
     val showImages: Boolean = true,
     val homeSections: List<String> = HomeSection.defaults,
-    /** Home sections the user has folded shut; they stay shut until tapped open again. */
-    val collapsedSections: Set<String> = emptySet(),
+    /** Home sections the user has folded shut; they stay shut until tapped open again. Default: all but the top two. */
+    val collapsedSections: Set<String> = HomeSection.defaultCollapsed(HomeSection.defaults),
     /**
      * How many days of news the home page shows, and how far back each refresh re-populates (today
      * plus the previous [feedWindowDays] − 1 days). Default 3 = today, yesterday and the day before.
@@ -63,7 +66,7 @@ data class AppSettings(
 )
 
 /** Bump when SourceDirectory changes need applying to existing installs (see Repository.applyDirectoryUpdates). */
-const val DIRECTORY_VERSION = 8
+const val DIRECTORY_VERSION = 9
 
 class SettingsStore(context: Context) {
     private val prefs: SharedPreferences = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
@@ -80,7 +83,8 @@ class SettingsStore(context: Context) {
         lineSpacing = prefs.getFloat("lineSpacing", 1.5f),
         showImages = prefs.getBoolean("showImages", true),
         homeSections = prefs.getString("homeSections", null)?.split(',')?.filter { it.isNotBlank() } ?: HomeSection.defaults,
-        collapsedSections = prefs.getString("collapsedSections", "")?.split(',')?.filter { it.isNotBlank() }?.toSet() ?: emptySet(),
+        collapsedSections = prefs.getString("collapsedSections", null)?.split(',')?.filter { it.isNotBlank() }?.toSet()
+            ?: HomeSection.defaultCollapsed(prefs.getString("homeSections", null)?.split(',')?.filter { it.isNotBlank() } ?: HomeSection.defaults),
         feedWindowDays = prefs.getInt("feedWindowDays", 3),
         storyWindowDays = prefs.getInt("storyWindowDays", 14),
         homePlace = prefs.getString("homePlace", "CA-SK:saskatoon")!!,

@@ -2,6 +2,12 @@ package ca.newsarchive.core
 
 import ca.newsarchive.core.extract.ArticleExtractor
 import ca.newsarchive.core.model.ArticleType
+import ca.newsarchive.core.model.Block
+import ca.newsarchive.core.model.BlockCodec
+import ca.newsarchive.core.model.BlockType
+import ca.newsarchive.core.model.InlineStyle
+import ca.newsarchive.core.model.Span
+import ca.newsarchive.core.model.texts
 import ca.newsarchive.core.model.ExtractionStatus
 import ca.newsarchive.core.telegram.TelegramPreview
 import ca.newsarchive.core.text.Dates
@@ -70,6 +76,47 @@ class ExtractorTest {
         assertEquals("https://gov.example/health", links[1].href)
         // The plain text carries no markup, so diffing and search are unaffected.
         assertTrue(first.text.startsWith("The premier said the plan is fully funded"), first.text)
+    }
+
+    @Test fun keepsPhotosInPlaceWithCaptionsHeadingsAndNumbers() {
+        val html = page(body = """<main><article class="story-body">
+            <p>$para</p>
+            <figure><img src="/img/clinic.jpg" srcset="/img/clinic-400.jpg 400w, /img/clinic-1200.jpg 1200w, /img/clinic-2400.jpg 2400w" width="1200" height="800" alt="A clinic">
+              <figcaption>The clinic in Rosetown. (Jo Lee/Example Post)</figcaption></figure>
+            <h3>What changes</h3>
+            <ol start="3"><li>More nurses in rural areas across the province this year.</li><li>Longer hours at night and on weekends for all patients.</li></ol>
+            <img class="author-avatar" src="/img/alex.jpg" width="200" height="200">
+            <div class="lazy"><img src="data:image/gif;base64,R0lGOD" data-x="1"><noscript><img src="https://cdn.example/photo2.jpg" width="900" height="600"></noscript></div>
+            <p>$para Second.</p></article></main>""")
+        val a = ArticleExtractor.extract(html, "https://post.example/news/clinic-funding")
+        val types = a.blocks.map { it.type.name }
+        assertEquals(listOf("PARAGRAPH", "IMAGE", "HEADING", "LIST_ITEM", "LIST_ITEM", "IMAGE", "PARAGRAPH"), types)
+        val photo = a.blocks[1]
+        assertEquals("https://post.example/img/clinic-1200.jpg", photo.imageUrl)
+        assertEquals("The clinic in Rosetown. (Jo Lee/Example Post)", photo.caption)
+        assertEquals(1200 to 800, photo.width to photo.height)
+        assertEquals("", photo.text)
+        assertEquals(3, a.blocks[2].level)
+        assertEquals(listOf(3, 4), a.blocks.filter { it.type.name == "LIST_ITEM" }.map { it.ordinal })
+        assertEquals("https://cdn.example/photo2.jpg", a.blocks[5].imageUrl)
+        // Photos add nothing to the text that versions are compared on.
+        assertEquals(5, a.blocks.texts().size)
+    }
+
+    @Test fun blockCodecRoundTripsAndReadsOldArchives() {
+        val blocks = listOf(
+            Block(BlockType.HEADING, "What changes", level = 2),
+            Block(BlockType.IMAGE, "", imageUrl = "https://x.example/a.jpg", caption = "A caption", width = 640, height = 480),
+            Block(BlockType.LIST_ITEM, "First", ordinal = 1),
+            Block(BlockType.PARAGRAPH, "Photo: someone", isCaption = true),
+            Block(BlockType.PARAGRAPH, "Bold here", spans = listOf(Span(0, 4, InlineStyle.BOLD))),
+        )
+        assertEquals(blocks, BlockCodec.decode(BlockCodec.encode(blocks)))
+        val old = "H|Old heading\nP|Old text\u0001" + "0\u00034\u0003B\u0003"
+        val dec = BlockCodec.decode(old)
+        assertEquals(listOf("Old heading", "Old text"), dec.texts())
+        assertEquals(0, dec[0].level)
+        assertEquals(1, dec[1].spans.size)
     }
 
     @Test fun respectsPaywallMarkup() {

@@ -83,6 +83,7 @@ import ca.newsarchive.app.ui.Fmt
 import ca.newsarchive.app.ui.components.CollectionPickerDialog
 import ca.newsarchive.app.ui.components.Nav
 import ca.newsarchive.app.ui.components.ReaderQueue
+import ca.newsarchive.app.ui.components.ArticlePhoto
 import ca.newsarchive.app.ui.components.RemoteImage
 import ca.newsarchive.app.ui.components.copyLink
 import ca.newsarchive.app.ui.components.openUrl
@@ -170,6 +171,11 @@ fun ReaderScreen(articleId: Long, nav: Nav) {
         val lineHeight = (settings.lineSpacing).em
         val blocks = v.blocks()
         val images = v.images?.lines()?.filter { it.isNotBlank() }.orEmpty()
+        val hasInlinePhotos = blocks.any { it.isImage }
+        // Skip the separate lead photo when the article's own photos already open the story or include it.
+        val leadInBody = a.imageUrl != null && blocks.any { it.isImage && samePhoto(it.imageUrl, a.imageUrl) }
+        val photoFirst = blocks.firstOrNull()?.isImage == true
+        val showLead = settings.showImages && a.imageUrl != null && !leadInBody && !photoFirst
 
         LazyColumn(Modifier.weight(1f).fillMaxWidth()) {
             item {
@@ -201,7 +207,7 @@ fun ReaderScreen(articleId: Long, nav: Nav) {
                     }
                 }
             }
-            if (settings.showImages && a.imageUrl != null) item {
+            if (showLead) item {
                 RemoteImage(a.imageUrl, Modifier.padding(vertical = 8.dp).fillMaxWidth().aspectRatio(16f / 9f))
             }
             if (blocks.isEmpty()) item {
@@ -210,28 +216,45 @@ fun ReaderScreen(articleId: Long, nav: Nav) {
             }
             items(blocks.size) { i ->
                 val b = blocks[i]
+                if (b.isImage) {
+                    if (settings.showImages && b.imageUrl != null) Column(Modifier.padding(vertical = 8.dp)) {
+                        ArticlePhoto(b.imageUrl!!, b.width, b.height, contentDescription = b.caption)
+                        b.caption?.let { cap ->
+                            Text(cap, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 6.dp))
+                        }
+                    }
+                    return@items
+                }
                 val linkColor = MaterialTheme.colorScheme.primary
                 val body = remember(b, linkColor) { inlineFormatted(b.text, b.spans, linkColor) }
                 SelectionContainer {
                     when (b.type) {
-                        BlockType.HEADING -> Text(body, fontFamily = Serif, fontWeight = FontWeight.Bold, fontSize = bodySize * 1.15f,
-                            modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 4.dp))
+                        BlockType.HEADING -> Text(body, fontFamily = Serif, fontWeight = FontWeight.Bold,
+                            fontSize = bodySize * when (b.level) { 2 -> 1.3f; 4 -> 1.05f; else -> 1.15f },
+                            modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = if (b.level == 2) 18.dp else 14.dp, bottom = 4.dp))
                         BlockType.QUOTE -> Row(Modifier.padding(horizontal = 20.dp, vertical = 6.dp)) {
                             Box(Modifier.width(3.dp).height(24.dp).background(MaterialTheme.colorScheme.outline))
                             Spacer(Modifier.width(10.dp))
                             Text(body, fontFamily = Serif, fontStyle = FontStyle.Italic, fontSize = bodySize, lineHeight = lineHeight)
                         }
-                        BlockType.LIST_ITEM -> Text(
-                            remember(body) { buildAnnotatedString { append("•  "); append(body) } },
-                            fontFamily = Serif, fontSize = bodySize, lineHeight = lineHeight,
-                            modifier = Modifier.padding(start = 28.dp, end = 20.dp, top = 2.dp, bottom = 2.dp),
-                        )
-                        BlockType.PARAGRAPH -> Text(body, fontFamily = Serif, fontSize = bodySize, lineHeight = lineHeight,
+                        BlockType.LIST_ITEM -> Row(Modifier.padding(start = 24.dp, end = 20.dp, top = 3.dp, bottom = 3.dp)) {
+                            // Hanging marker: wrapped lines line up under the text, as on the page.
+                            Text(when { b.ordinal > 0 -> "${b.ordinal}."; b.ordinal < 0 -> ""; else -> "•" },
+                                fontFamily = Serif, fontSize = bodySize, lineHeight = lineHeight, modifier = Modifier.width(28.dp))
+                            Text(body, fontFamily = Serif, fontSize = bodySize, lineHeight = lineHeight)
+                        }
+                        BlockType.PARAGRAPH -> if (b.isCaption) {
+                            Text(body, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 0.dp, bottom = 8.dp))
+                        } else Text(body, fontFamily = Serif, fontSize = bodySize, lineHeight = lineHeight,
                             modifier = Modifier.padding(horizontal = 20.dp, vertical = 7.dp))
+                        BlockType.IMAGE -> Unit
                     }
                 }
             }
-            if (settings.showImages) {
+            // Articles archived before photos were kept in place: show their photos after the text.
+            if (settings.showImages && !hasInlinePhotos) {
                 val extra = images.filter { it != a.imageUrl }.take(6)
                 items(extra) { url -> RemoteImage(url, Modifier.padding(horizontal = 20.dp, vertical = 6.dp).fillMaxWidth().aspectRatio(16f / 10f)) }
             }
@@ -280,6 +303,14 @@ fun ReaderScreen(articleId: Long, nav: Nav) {
  * Builds the display string for one body block, re-applying the publisher's inline formatting
  * (bold, italics, inline code, and clickable links) that [spans] recorded over [text].
  */
+/** Same photo at a different size or crop: compare the file name without size suffixes or query. */
+private fun samePhoto(a: String?, b: String?): Boolean {
+    if (a == null || b == null) return false
+    fun key(u: String) = u.substringBefore('?').substringBefore('#').substringAfterLast('/').substringBeforeLast('.')
+        .lowercase().replace(Regex("[-_](\\d{2,4}x\\d{2,4}|\\d{2,4}w|scaled|large|medium|small|thumb)$"), "")
+    return a == b || key(a).let { it.length >= 6 && it == key(b) }
+}
+
 private fun inlineFormatted(text: String, spans: List<Span>, linkColor: Color): AnnotatedString {
     if (spans.isEmpty()) return AnnotatedString(text)
     return buildAnnotatedString {

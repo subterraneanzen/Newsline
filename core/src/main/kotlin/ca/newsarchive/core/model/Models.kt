@@ -57,10 +57,33 @@ data class Span(val start: Int, val end: Int, val style: InlineStyle, val href: 
  * A block of article body. Paragraph-level granularity is what versions are diffed on. [text] is the
  * plain text used everywhere (diff, search, hashing); [spans] carry the publisher's inline formatting
  * for display only and are empty when none was found or could not be aligned to [text].
+ *
+ * Display-only layout (never part of [text], so it never shows up as an edit between versions):
+ * - [level]: heading level 2–4 (0 = unknown, older archives).
+ * - [ordinal]: for LIST_ITEM, 0 = bullet, n > 0 = numbered "n.", -1 = a further paragraph of the same item.
+ * - [caption]: a paragraph that is a photo caption ([isCaption]), or for IMAGE the caption text that
+ *   wasn't captured as its own paragraph.
+ * - IMAGE blocks have empty [text]; [imageUrl] and the publisher's [width]/[height] (0 = unknown).
  */
-data class Block(val type: BlockType, val text: String, val spans: List<Span> = emptyList())
+data class Block(
+    val type: BlockType,
+    val text: String,
+    val spans: List<Span> = emptyList(),
+    val level: Int = 0,
+    val ordinal: Int = 0,
+    val imageUrl: String? = null,
+    val caption: String? = null,
+    val width: Int = 0,
+    val height: Int = 0,
+    val isCaption: Boolean = false,
+) {
+    val isImage: Boolean get() = type == BlockType.IMAGE
+}
 
-enum class BlockType { PARAGRAPH, HEADING, QUOTE, LIST_ITEM }
+enum class BlockType { PARAGRAPH, HEADING, QUOTE, LIST_ITEM, IMAGE }
+
+/** The text paragraphs only (photos left out): what versions are diffed, searched and classified on. */
+fun List<Block>.texts(): List<String> = filter { !it.isImage }.map { it.text }
 
 data class ExtractedArticle(
     val title: String?,

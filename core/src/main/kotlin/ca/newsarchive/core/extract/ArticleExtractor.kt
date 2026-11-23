@@ -98,12 +98,14 @@ object ArticleExtractor {
         var finalBlocks = blocks
         val ldBody = ld?.string("articleBody")
         if (accessibleForFree != false && ldBody != null && ldBody.length > finalBlocks.sumOf { it.text.length } * 1.3) {
-            finalBlocks = ldBody.split(Regex("\\n\\s*\\n|\\n")).map { TextNormalizer.clean(it) }
+            val paras = ldBody.split(Regex("\\n\\s*\\n|\\n")).map { TextNormalizer.clean(it) }
                 .filter { it.isNotEmpty() }.map { Block(BlockType.PARAGRAPH, it) }
+            finalBlocks = placePhotos(paras, blocks)
         }
-        // Drop a leading block that just repeats the headline.
-        if (title != null && finalBlocks.firstOrNull()?.let { TextNormalizer.comparable(it.text) == TextNormalizer.comparable(title) } == true) {
-            finalBlocks = finalBlocks.drop(1)
+        // Drop a leading block that just repeats the headline (photos before it are kept).
+        val firstText = finalBlocks.indexOfFirst { !it.isImage }
+        if (title != null && firstText >= 0 && TextNormalizer.comparable(finalBlocks[firstText].text) == TextNormalizer.comparable(title)) {
+            finalBlocks = finalBlocks.filterIndexed { i, _ -> i != firstText }
         }
 
         val words = finalBlocks.sumOf { b -> b.text.split(' ').count { it.isNotBlank() } }
@@ -138,13 +140,33 @@ object ArticleExtractor {
     }
 
     /** Converts feed-supplied HTML (e.g. content:encoded) into blocks. */
-    fun blocksFromHtml(html: String): List<Block> {
-        val doc = Jsoup.parseBodyFragment(html)
+    fun blocksFromHtml(html: String, baseUrl: String = ""): List<Block> {
+        val doc = Jsoup.parseBodyFragment(html, baseUrl)
         clean(doc)
         val out = collectBlocks(doc.body())
-        if (out.isNotEmpty()) return out
+        if (out.any { !it.isImage }) return out
         val t = TextNormalizer.clean(doc.text())
-        return if (t.isEmpty()) emptyList() else listOf(Block(BlockType.PARAGRAPH, t))
+        return if (t.isEmpty()) out else listOf(Block(BlockType.PARAGRAPH, t)) + out
+    }
+
+    /**
+     * When the body text comes from JSON-LD (no markup), put the page's photos back at roughly the same
+     * point in the text as on the page, measured by the share of text that came before each photo.
+     */
+    private fun placePhotos(paras: List<Block>, dom: List<Block>): List<Block> {
+        val photos = dom.withIndex().filter { it.value.isImage }
+        if (photos.isEmpty() || paras.isEmpty()) return paras
+        val domTotal = dom.sumOf { it.text.length }.coerceAtLeast(1)
+        val paraTotal = paras.sumOf { it.text.length }.coerceAtLeast(1)
+        val at = photos.map { (i, b) -> dom.take(i).sumOf { it.text.length }.toDouble() / domTotal to b }
+        val out = mutableListOf<Block>()
+        var seen = 0; var k = 0
+        for (p in paras) {
+            while (k < at.size && at[k].first <= seen.toDouble() / paraTotal) out += at[k++].second
+            out += p; seen += p.text.length
+        }
+        while (k < at.size) out += at[k++].second
+        return out
     }
 
     // ---------------------------------------------------------------------------------------
@@ -164,10 +186,12 @@ object ArticleExtractor {
                 ?: img.attr("alt").ifBlank { null }
             ArticleImage(src, cap)
         }.distinctBy { it.url }.take(12)
+
         return blocks to images
     }
 
     private fun clean(doc: Document) {
+        rescueNoscriptImages(doc)
         doc.select("script, style, noscript, iframe, form, nav, footer, aside, button, svg, canvas, video, audio, " +
             "select, input, textarea, [hidden], [aria-hidden=true], [role=navigation], [role=banner], [role=complementary], " +
             "[role=dialog], [role=alertdialog], template, object, embed").remove()
@@ -212,30 +236,140 @@ object ArticleExtractor {
 
     private fun collectBlocks(root: Element): List<Block> {
         val out = mutableListOf<Block>()
-        for (el in root.select("p, h2, h3, h4, blockquote, li, pre")) {
+        val captured = HashSet<Element>()   // figcaptions whose text already became caption paragraphs
+        for (el in root.select("p, h2, h3, h4, blockquote, li, pre, img")) {
+            if (el.tagName() == "img") {
+                photoBlock(el, captured)?.let { ph -> if (out.none { it.isImage && it.imageUrl == ph.imageUrl }) out += ph }
+                continue
+            }
             // Skip containers whose text will be captured by a nested block.
             if (el.tagName() == "blockquote" && el.selectFirst("p") != null) continue
             if (el.tagName() == "li" && (el.selectFirst("p") != null || el.parents().any { it.tagName() == "nav" })) continue
-            if (el.tagName() == "p" && el.parents().any { it.tagName() == "li" }) {
-                // fine – list paragraph
-            }
             val text = TextNormalizer.clean(textWithBreaks(el))
             if (text.isEmpty()) continue
             if (boilerplateLine.matches(text)) continue
             if (linkDensity(el) > 0.6 && text.length < 200) continue
+            // A paragraph inside a list item is that item (the first one carries the bullet or number).
+            val li = if (el.tagName() == "li") el else if (el.tagName() == "p") el.parents().firstOrNull { it.tagName() == "li" } else null
             val type = when (el.tagName()) {
                 "h2", "h3", "h4" -> BlockType.HEADING
                 "blockquote" -> BlockType.QUOTE
                 "li" -> BlockType.LIST_ITEM
-                else -> if (el.parents().any { it.tagName() == "blockquote" }) BlockType.QUOTE else BlockType.PARAGRAPH
+                else -> when {
+                    el.parents().any { it.tagName() == "blockquote" } -> BlockType.QUOTE
+                    li != null -> BlockType.LIST_ITEM
+                    else -> BlockType.PARAGRAPH
+                }
             }
             if (type == BlockType.HEADING && text.length > 200) continue
-            if (out.lastOrNull()?.text == text) continue
-            out += Block(type, text, inlineSpans(el, text))
+            if (out.lastOrNull { !it.isImage }?.text == text) continue
+            val ordinal = if (type != BlockType.LIST_ITEM || li == null) 0 else {
+                val firstPara = el.tagName() == "li" || li.select("p").firstOrNull() == el
+                if (!firstPara) -1 else listNumber(li)
+            }
+            val figcaption = el.parents().firstOrNull { it.tagName() == "figcaption" }
+            if (figcaption != null) captured += figcaption
+            out += Block(
+                type, text, inlineSpans(el, text),
+                level = if (type == BlockType.HEADING) el.tagName()[1].digitToInt() else 0,
+                ordinal = ordinal,
+                isCaption = figcaption != null && type == BlockType.PARAGRAPH,
+            )
         }
-        // Trailing headings with no following text are usually "Related" widgets.
-        while (out.isNotEmpty() && out.last().type == BlockType.HEADING) out.removeAt(out.size - 1)
+        // Trailing headings with no following text are usually "Related" widgets; drop them and
+        // any photos after them (photos after the last paragraph with no heading between stay).
+        val lastText = out.indexOfLast { !it.isImage && it.type != BlockType.HEADING }
+        val cut = (lastText + 1 until out.size).firstOrNull { out[it].type == BlockType.HEADING }
+        if (cut != null) while (out.size > cut) out.removeAt(out.size - 1)
         return out
+    }
+
+    /** 0 for a bullet, otherwise the item's number in its <ol> (honouring start=). */
+    private fun listNumber(li: Element): Int {
+        val list = li.parent() ?: return 0
+        if (list.tagName() != "ol") return 0
+        val start = list.attr("start").toIntOrNull() ?: 1
+        return start + list.children().filter { it.tagName() == "li" }.indexOf(li).coerceAtLeast(0)
+    }
+
+    private val notAPhoto = Regex("(avatar|author|headshot|byline|logo|icon|emoji|sprite|badge|spinner|placeholder|tracking|pixel)", RegexOption.IGNORE_CASE)
+
+    /** An inline photo with its caption, or null for icons, trackers, author headshots and the like. */
+    private fun photoBlock(img: Element, captured: Set<Element>): Block? {
+        val src = imageSrc(img) ?: return null
+        val lower = src.lowercase().substringBefore('?')
+        if (lower.endsWith(".svg") || lower.contains("spacer") || lower.contains("1x1") || lower.contains("blank.gif")) return null
+        val sig = (listOf(img) + img.parents().take(3)).joinToString(" ") { it.className() + " " + it.id() } + " " + img.attr("alt")
+        if (notAPhoto.containsMatchIn(sig) || notAPhoto.containsMatchIn(lower.substringAfterLast('/'))) return null
+        val w = img.attr("width").filter { it.isDigit() }.toIntOrNull() ?: 0
+        val h = img.attr("height").filter { it.isDigit() }.toIntOrNull() ?: 0
+        if ((w in 1..119) || (h in 1..59)) return null
+        val figure = img.parents().firstOrNull { it.tagName() == "figure" }
+        // The caption goes with the last photo of a figure (galleries share one caption).
+        val lastInFigure = figure == null || figure.select("img").lastOrNull() == img
+        val figcaption = figure?.selectFirst("figcaption")
+        val caption = if (!lastInFigure || figcaption == null) null
+            else if (figcaption.selectFirst("p") != null || figcaption in captured) null   // shown as its own caption paragraph
+            else TextNormalizer.clean(figcaption.text()).ifBlank { null }
+        return Block(BlockType.IMAGE, "", imageUrl = src, caption = caption, width = w, height = h)
+    }
+
+    /** Best address for an <img>: a phone-sized srcset entry, then lazy-load attributes, then src. */
+    private fun imageSrc(img: Element): String? {
+        val sets = buildList {
+            add(img.attr("data-srcset")); add(img.attr("srcset")); add(img.attr("data-lazy-srcset"))
+            img.parent()?.takeIf { it.tagName() == "picture" }?.select("source")
+                ?.filter { s -> !s.attr("type").contains("avif") && s.attr("media").let { m -> m.isBlank() || "min-width" !in m } }
+                ?.forEach { add(it.attr("data-srcset")); add(it.attr("srcset")) }
+        }.filter { it.isNotBlank() }
+        val fromSet = sets.firstNotNullOfOrNull { pickFromSrcset(it, img.baseUri()) }
+        val plain = listOf("data-src", "data-original", "data-lazy-src", "data-url", "src")
+            .map { img.absUrl(it) }.firstOrNull { it.startsWith("http") }
+        return (fromSet ?: plain)?.let { if (it.startsWith("//")) "https:$it" else it }
+    }
+
+    private fun pickFromSrcset(set: String, base: String): String? {
+        val entries = set.split(Regex(",\\s+(?=\\S)")).mapNotNull { part ->
+            val bits = part.trim().split(Regex("\\s+"))
+            val url = resolve(base, bits.firstOrNull() ?: return@mapNotNull null) ?: return@mapNotNull null
+            val d = bits.getOrNull(1).orEmpty()
+            val width = when {
+                d.endsWith("w") -> d.dropLast(1).toIntOrNull() ?: 0
+                d.endsWith("x") -> ((d.dropLast(1).toDoubleOrNull() ?: 1.0) * 800).toInt()
+                else -> 0
+            }
+            url to width
+        }
+        if (entries.isEmpty()) return null
+        return (entries.filter { it.second in 600..1600 }.maxByOrNull { it.second }
+            ?: entries.filter { it.second > 1600 }.minByOrNull { it.second }
+            ?: entries.maxByOrNull { it.second })?.first
+    }
+
+    private fun resolve(base: String, url: String): String? {
+        if (url.startsWith("data:")) return null
+        if (url.startsWith("http://") || url.startsWith("https://")) return url
+        if (url.startsWith("//")) return "https:$url"
+        return runCatching { java.net.URI(base).resolve(url.replace(" ", "%20")).toString() }.getOrNull()?.takeIf { it.startsWith("http") }
+    }
+
+    /**
+     * Lazy-loading pages put the real <img> inside <noscript> and a placeholder before it. Swap the
+     * real one in (or drop the noscript copy when the visible image already has a real address) so the
+     * photo survives the removal of <noscript>.
+     */
+    private fun rescueNoscriptImages(doc: Document) {
+        for (ns in doc.select("noscript")) {
+            val imgs = ns.select("img").ifEmpty {
+                val raw = ns.html().ifBlank { ns.wholeText() }
+                if ("<img" !in raw) emptyList() else Jsoup.parseBodyFragment(org.jsoup.parser.Parser.unescapeEntities(raw, false), ns.baseUri()).select("img").toList()
+            }
+            if (imgs.isEmpty()) continue
+            val prev = ns.previousElementSibling()?.let { if (it.tagName() == "img") it else it.selectFirst("img") }
+            if (prev != null && imageSrc(prev) != null) continue
+            prev?.remove()
+            imgs.reversed().forEach { ns.after(it.clone()) }
+        }
     }
 
     private fun textWithBreaks(el: Element): String {

@@ -179,6 +179,30 @@ class ExtractorTest {
         assertTrue(texts[3].startsWith("Opponents"))
     }
 
+    @Test fun leavesOutOtherStoriesPhotosAndPromoText() {
+        val html = page(body = """<article>
+            <h1>Clinic funding expanded</h1>
+            <figure><img src="https://img.example/clinic.jpg" width="1200" height="800"><figcaption>The new clinic in Rosetown.</figcaption></figure>
+            <p>$para</p>
+            <div class="story-card"><a href="/news/other-story"><img src="https://img.example/other-thumb.jpg" width="600" height="400"><h3>Unrelated: City council debates snow removal budget</h3></a></div>
+            <p><a href="/news/flood"><img src="https://img.example/flood.jpg" width="800" height="500"></a></p>
+            <p>Sign up for our morning newsletter to get the top stories delivered to your inbox.</p>
+            <p>$para Officials said the first clinics would open in the spring, with more to follow.</p>
+            <p>$para Opposition critics said the plan does not go far enough to fix staffing.</p>
+            <h2>More stories</h2>
+            <ul><li><a href="/a">Hockey team wins in overtime thriller at home</a></li><li><a href="/b">Weather: snow expected on Thursday across the province</a></li></ul>
+            <p>Teaser text for a different story about grain prices falling this month in the region.</p>
+            <img src="https://img.example/grain.jpg" width="800" height="500">
+            </article>""")
+        val a = ArticleExtractor.extract(html, "https://post.example/news/clinic-funding")
+        val photos = a.blocks.filter { it.isImage }.map { it.imageUrl }
+        assertEquals(listOf("https://img.example/clinic.jpg"), photos)
+        val text = a.blocks.texts().joinToString("\n")
+        for (bad in listOf("snow removal", "newsletter", "More stories", "Hockey", "grain prices")) assertFalse(bad in text, bad)
+        assertEquals(3, a.blocks.count { it.type == BlockType.PARAGRAPH && !it.isCaption })
+        assertEquals(listOf("https://img.example/clinic.jpg"), a.images.map { it.url })
+    }
+
     @Test fun breaksUpLongJsonLdText() {
         val sentence = "This is a sentence in a story that came with no paragraph breaks at all from the publisher. "
         val parts = ArticleExtractor.splitLongParagraph(sentence.repeat(20).trim())

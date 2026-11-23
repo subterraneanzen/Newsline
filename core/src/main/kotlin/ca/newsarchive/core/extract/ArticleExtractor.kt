@@ -44,7 +44,22 @@ object ArticleExtractor {
         "^(advertisement|story continues below advertisement|continue reading( below)?|read more:?.*|related:.*|" +
             "sign up for .*|subscribe (now|today).*|share this (article|story).*|click here.*|" +
             "©.*|copyright ©?.*all rights reserved.*|this article was originally published.*newsletter.*|" +
-            "listen to this article.*|getty images|ap photo)$",
+            "listen to this article.*|getty images|ap photo|" +
+            "(also read|see also|more from|more on this|watch|watch now|watch live|recommended( for you)?|trending( now)?|top stories|" +
+            "most (read|popular|viewed)|you (may|might) also like|don'?t miss|editor'?s picks?|latest (news|stories)|related (stories|articles|coverage|content))\\b.*|" +
+            "(follow|like) us on .*|download (our|the) .* app.*|get the latest .*|sign up (here|now|today).*|join our .*|" +
+            "(get|receive) (breaking news|alerts|our newsletter).*|report an? (typo|error|correction).*|have a (news )?tip.*|" +
+            "(share|email|print|tweet|copy link)( this)?|(\\d+ )?comments?|loading\\W*|ad feedback|skip ad|close)$",
+        RegexOption.IGNORE_CASE,
+    )
+
+    /** Headings that start a "more stories" area rather than a part of the story. */
+    private val recircHeading = Regex(
+        "^(related|more|read more|read next|up next|also read|see also|more (stories|news|from|on|in|like this).*|" +
+            "related (stories|articles|coverage|content|links|topics|video)|recommended.*|trending.*|popular.*|most (read|popular|viewed|shared).*|" +
+            "top stories|latest (news|stories|headlines)?|you (may|might) also like.*|don'?t miss.*|editor'?s picks?|" +
+            "what to read next|elsewhere.*|from around the web|sponsored.*|partner content|watch( more)?|videos?|" +
+            "in (other|case you missed).*|icymi.*|follow us.*|share this.*|tags?|topics?|about the author|comments?)\\W*$",
         RegexOption.IGNORE_CASE,
     )
 
@@ -95,13 +110,16 @@ object ArticleExtractor {
             ?.let { if (it.startsWith("//")) "https:$it" else it }
         val canonical = doc.selectFirst("link[rel=canonical]")?.absUrl("href")?.ifBlank { null } ?: meta.prop("og:url")
 
-        val (blocks, images) = extractBody(doc)
+        val (blocks, figurePhotos) = extractBody(doc)
         var finalBlocks = blocks
         val ldBody = ld?.string("articleBody")
         if (accessibleForFree != false && ldBody != null && ldBody.length > finalBlocks.sumOf { it.text.length } * 1.3) {
             val paras = ldBody.split(Regex("\\n\\s*\\n|\\n")).map { TextNormalizer.clean(it) }
                 .filter { it.isNotEmpty() }.flatMap(::splitLongParagraph).map { Block(BlockType.PARAGRAPH, it) }
-            finalBlocks = placePhotos(paras, blocks)
+            // Only photos that clearly belong to the story (in a <figure>, captioned, or the lead photo).
+            val leadKey = leadImage?.let(::imageKey)
+            val storyPhotos = blocks.filter { !it.isImage || it.caption != null || it.imageUrl in figurePhotos || imageKey(it.imageUrl) == leadKey }
+            finalBlocks = placePhotos(paras, storyPhotos)
         }
         // Drop a leading block that just repeats the headline (photos before it are kept).
         val firstText = finalBlocks.indexOfFirst { !it.isImage }
@@ -120,6 +138,9 @@ object ArticleExtractor {
             else -> ExtractionStatus.FAILED to "No readable article text was found on the page (it may require JavaScript, a login, or not be an article)."
         }
 
+        val keptImages = finalBlocks.filter { it.isImage && it.imageUrl != null }.map { ArticleImage(it.imageUrl!!, it.caption) }
+            .distinctBy { it.url }.take(12)
+
         return ExtractedArticle(
             title = title,
             author = author,
@@ -133,7 +154,7 @@ object ArticleExtractor {
             keywords = keywords,
             articleType = type,
             blocks = if (status == ExtractionStatus.FAILED) emptyList() else finalBlocks,
-            images = images,
+            images = if (status == ExtractionStatus.FAILED) emptyList() else keptImages,
             leadImage = leadImage,
             status = status,
             note = note,
@@ -144,6 +165,7 @@ object ArticleExtractor {
     fun blocksFromHtml(html: String, baseUrl: String = ""): List<Block> {
         val doc = Jsoup.parseBodyFragment(html, baseUrl)
         clean(doc)
+        removeRecirculation(doc.body())
         paragraphize(doc.body())
         val out = collectBlocks(doc.body())
         if (out.any { !it.isImage }) return out
@@ -173,24 +195,81 @@ object ArticleExtractor {
 
     // ---------------------------------------------------------------------------------------
 
-    private fun extractBody(doc: Document): Pair<List<Block>, List<ArticleImage>> {
+    private fun extractBody(doc: Document): Pair<List<Block>, Set<String>> {
         clean(doc)
         val explicit = doc.select(BODY_SELECTORS).firstOrNull()?.takeIf { textLen(it) > 300 }
-        val candidate = explicit ?: bestCandidate(doc) ?: doc.body() ?: return emptyList<Block>() to emptyList()
+        val candidate = explicit ?: bestCandidate(doc) ?: doc.body() ?: return emptyList<Block>() to emptySet()
+        removeRecirculation(candidate)
         paragraphize(candidate)
-        val blocks = collectBlocks(candidate)
-        val images = candidate.select("img").mapNotNull { img ->
-            val src = listOf("data-src", "data-original", "data-lazy-src", "src").map { img.absUrl(it) }.firstOrNull { it.startsWith("http") }
-                ?: return@mapNotNull null
-            if (src.endsWith(".svg") || src.contains("pixel") || src.contains("spacer") || src.contains("1x1")) return@mapNotNull null
-            val w = img.attr("width").toIntOrNull()
-            if (w != null && w < 120) return@mapNotNull null
-            val cap = img.closest("figure")?.selectFirst("figcaption")?.text()?.let { TextNormalizer.clean(it) }?.ifBlank { null }
-                ?: img.attr("alt").ifBlank { null }
-            ArticleImage(src, cap)
-        }.distinctBy { it.url }.take(12)
+        val figurePhotos = candidate.select("figure img").mapNotNull(::imageSrc).toSet()
+        return collectBlocks(candidate) to figurePhotos
+    }
 
-        return blocks to images
+    /** A key for comparing photo addresses regardless of size parameters or protocol. */
+    private fun imageKey(url: String?): String? = url?.substringBefore('?')?.substringAfter("://")?.substringAfterLast('/')?.ifBlank { null }
+
+    private fun isImageLink(a: Element): Boolean {
+        val href = a.attr("href").lowercase().substringBefore('?')
+        return Regex("\\.(jpe?g|png|webp|gif|avif)$").containsMatchIn(href)
+    }
+
+    /**
+     * Removes the bits of a page that sit next to or inside the story but are about other stories:
+     * "related" cards (a link wrapping a photo or headline), link lists, nested short <article> teasers,
+     * and everything from a "More stories"-style heading onward when it comes after the story text.
+     */
+    private fun removeRecirculation(root: Element) {
+        // Short nested <article>/<li> teasers that are mostly a link (card grids, "more stories" lists).
+        for (el in root.select("article, li, div, section").toList()) {
+            if (el == root || el.parent() == null) continue
+            val len = textLen(el)
+            val links = el.select("a[href]")
+            if (links.isEmpty()) continue
+            val linkedPhotoOrHeadline = links.any { a -> !isImageLink(a) && (a.selectFirst("img, picture, h1, h2, h3, h4, h5, h6") != null) } ||
+                el.select("h2 a[href], h3 a[href], h4 a[href], h5 a[href], h6 a[href]").isNotEmpty()
+            val card = linkedPhotoOrHeadline && len < 400 && el.select("p").count { textLen(it) > 150 } == 0
+            val linkList = el.tagName() != "li" && len in 1..1200 && linkDensity(el) > 0.55 && links.size >= 3
+            if (card || linkList) el.remove()
+        }
+        // Any remaining photo that links to another page (not to a bigger copy of itself) is a teaser.
+        for (img in root.select("a[href] img").toList()) {
+            val a = img.parents().first { it.tagName() == "a" }
+            if (!isImageLink(a) && a.attr("href").isNotBlank() && !a.attr("href").startsWith("#")) {
+                (img.parents().firstOrNull { it.tagName() == "figure" }?.takeIf { textLen(it) < 300 } ?: a).remove()
+            }
+        }
+        // A "Related" / "More stories" heading after most of the text ends the story.
+        val total = textLen(root).coerceAtLeast(1)
+        for (h in root.select("h2, h3, h4, h5, h6, strong, b").toList()) {
+            if (h.parent() == null) continue
+            val t = TextNormalizer.clean(h.text())
+            if (t.isEmpty() || t.length > 60 || !recircHeading.matches(t)) continue
+            if (h.tagName() in setOf("strong", "b") && h.parent()?.let { textLen(it) != t.length } == true) continue
+            val before = textBefore(root, h)
+            if (before < total * 0.5) { h.remove(); continue }
+            // Remove the heading and everything after it inside the story container.
+            var node: Element? = h
+            while (node != null && node != root) {
+                generateSequence(node.nextElementSibling()) { it.nextElementSibling() }.toList().forEach { it.remove() }
+                val parent = node.parent()
+                if (node == h) node.remove()
+                node = parent
+            }
+            break
+        }
+    }
+
+    private fun textBefore(root: Element, target: Element): Int {
+        var n = 0; var done = false
+        org.jsoup.select.NodeTraversor.traverse(object : org.jsoup.select.NodeVisitor {
+            override fun head(node: Node, depth: Int) {
+                if (done) return
+                if (node == target) { done = true; return }
+                if (node is TextNode) n += node.text().trim().length
+            }
+            override fun tail(node: Node, depth: Int) {}
+        }, root)
+        return n
     }
 
     private fun clean(doc: Document) {
@@ -252,6 +331,7 @@ object ArticleExtractor {
             if (text.isEmpty()) continue
             if (boilerplateLine.matches(text)) continue
             if (linkDensity(el) > 0.6 && text.length < 200) continue
+            if (el.parents().any { it.tagName() == "a" }) continue   // teaser text inside a link to another story
             // A paragraph inside a list item is that item (the first one carries the bullet or number).
             val li = if (el.tagName() == "li") el else if (el.tagName() == "p") el.parents().firstOrNull { it.tagName() == "li" } else null
             val type = when (el.tagName()) {
@@ -264,7 +344,7 @@ object ArticleExtractor {
                     else -> BlockType.PARAGRAPH
                 }
             }
-            if (type == BlockType.HEADING && text.length > 200) continue
+            if (type == BlockType.HEADING && (text.length > 200 || recircHeading.matches(text))) continue
             if (out.lastOrNull { !it.isImage }?.text == text) continue
             val ordinal = if (type != BlockType.LIST_ITEM || li == null) 0 else {
                 val firstPara = el.tagName() == "li" || li.select("p").firstOrNull() == el
